@@ -1,24 +1,27 @@
-import Link from "next/link"
+import React from "react";
 
-export default function FileList({ fileList }) {
+export default function FileList({ fileList, onFileClick }) {
   return (
     <div>
       {fileList.length > 0 && (
         <div className="mt-4">
-          <h2 className="font-bold">Files:</h2>
-          <div className="list-disc pl-5 mt-2">
-            {fileList.map(({ file, path }, index) => (
-              <div key={index}>
-                <Link href={`/file?path=${encodeURIComponent(path)}`} className="text-blue-300 hover:underline">
-                  {path}
-                </Link>
-
-                <span> ({file.size} B)</span>
+          <div className="list-disc pl-5 mt-2 space-y-1">
+            {fileList.map(({ name, uuid }, index) => (
+              <div key={uuid || index}>
+                <button
+                  className="text-blue-500 hover:underline"
+                  onClick={() => onFileClick?.({ name, uuid })}
+                >
+                  {name}
+                </button>
               </div>
             ))}
           </div>
         </div>
       )}
+      {fileList.length === 0 && (
+        <div className="text-gray-400">No files found or wrong password.</div>
+      )}
     </div>
-  )
+  );
 }
