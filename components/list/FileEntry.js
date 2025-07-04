@@ -1,7 +1,13 @@
+import Link from "next/link";
+
 export default function FileEntry({ path, file }) {
   return (
     <div>
-      {path} | <strong>{file.size} bytes</strong>
+      <Link href={`/file?path=${encodeURIComponent(path)}`} className="text-blue-300 hover:underline">
+        {path}
+      </Link>
+
+      <span> ({file.size} B)</span>
     </div>
   );
 }
