@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 import { useFileContext } from '@/context/FileContext';
+import FileViewer from '@/components/FileViewer';
 
 export default function FilePage() {
   const searchParams = useSearchParams();
@@ -17,11 +18,7 @@ export default function FilePage() {
       <h1 className="text-center text-xl font-extrabold mb-4">{path}</h1>
 
       {entry ? (
-        <div className='mb-4'>
-          <p><strong>Name:</strong> {entry.file.name}</p>
-          <p><strong>Size:</strong> {entry.file.size} bytes</p>
-          <p><strong>Type:</strong> {entry.file.type || 'Unknown'}</p>
-        </div>
+        <FileViewer file={entry.file} />
       ) : (
         <p>Please select a folder to provide access to your files.</p>
       )}
