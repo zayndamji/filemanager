@@ -1,4 +1,5 @@
 import AudioFile from "./AudioFile";
+import TextFile from "./TextFile";
 
 export default function FileViewer({ file }) {
   return (
@@ -8,7 +9,7 @@ export default function FileViewer({ file }) {
           {file.type.startsWith('audio') ? (
             <AudioFile file={file} />
           ) : file.type.startsWith('text') ? (
-            <pre>{file.type}</pre>
+            <TextFile file={file} />
           ) : (
             <p>Unsupported file type: {file.type}</p>
           )}
