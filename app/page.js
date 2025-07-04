@@ -1,17 +1,16 @@
 'use client';
 
-import { useState } from "react";
-
 import FolderPicker from '@/components/FolderPicker';
 import FileList from '@/components/list/FileList';
+import { useFolderContext } from '@/context/FolderContext';
 
 export default function Home() {
-  const [files, setFiles] = useState([]);
+  const { fileList } = useFolderContext();
 
   return (
     <div className="p-4">
-      <FolderPicker onOpen={setFiles} />
-      <FileList files={files} />
+      <FolderPicker />
+      <FileList fileList={fileList} />
     </div>
   );
 }

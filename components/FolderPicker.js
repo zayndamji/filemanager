@@ -1,10 +1,14 @@
-export default function FolderPicker({ onOpen }) {
+import { useFolderContext } from '@/context/FolderContext';
+
+export default function FolderPicker() {
+  const { setFileList, setFolderHandle } = useFolderContext();
+
   const openFolder = async () => {
     try {
-      const directory = await window.showDirectoryPicker();
+      const folderHandle = await window.showDirectoryPicker();
       const fileList = [];
 
-      for await (const [name, handle] of directory.entries()) {
+      for await (const [name, handle] of folderHandle.entries()) {
         if (handle.kind === "file") {
           const file = await handle.getFile();
           fileList.push({ file, path: name });
@@ -15,7 +19,8 @@ export default function FolderPicker({ onOpen }) {
         }
       }
 
-      onOpen(fileList.filter(e => e.file.name !== '.DS_Store'));
+      setFolderHandle(folderHandle);
+      setFileList(fileList.filter(e => e.file.name !== '.DS_Store'));
     } catch (error) {
       console.error("Error accessing folder:", error);
     }
@@ -37,10 +42,7 @@ export default function FolderPicker({ onOpen }) {
   };
 
   return (
-    <button
-      className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full"
-      onClick={openFolder}
-    >
+    <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full" onClick={openFolder}>
       Open Folder
     </button>
   );
