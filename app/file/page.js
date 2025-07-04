@@ -3,13 +3,13 @@
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-import { useFolderContext } from '@/context/FolderContext';
+import { useFileContext } from '@/context/FileContext';
 
 export default function FilePage() {
   const searchParams = useSearchParams();
   const path = searchParams.get('path');
 
-  const { fileList } = useFolderContext();
+  const { fileList } = useFileContext();
   const entry = fileList.find(e => e.path == path);
 
   return (
@@ -23,7 +23,7 @@ export default function FilePage() {
           <p><strong>Type:</strong> {entry.file.type || 'Unknown'}</p>
         </div>
       ) : (
-        <p>No file selected. Please go back to Home to select a file.</p>
+        <p>Please go back to Home to provide access to your files.</p>
       )}
 
       <p>Go to <Link href={`/`} className="text-blue-300 hover:underline">Home</Link></p>

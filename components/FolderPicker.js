@@ -1,14 +1,14 @@
-import { useFolderContext } from '@/context/FolderContext';
+import { useFileContext } from '@/context/FileContext';
 
 export default function FolderPicker() {
-  const { setFileList, setFolderHandle } = useFolderContext();
+  const { setFileList, setHandle } = useFileContext();
 
   const openFolder = async () => {
     try {
-      const folderHandle = await window.showDirectoryPicker();
+      const pickerHandle = await window.showDirectoryPicker();
       const fileList = [];
 
-      for await (const [name, handle] of folderHandle.entries()) {
+      for await (const [name, handle] of pickerHandle.entries()) {
         if (handle.kind === "file") {
           const file = await handle.getFile();
           fileList.push({ file, path: name });
@@ -19,7 +19,7 @@ export default function FolderPicker() {
         }
       }
 
-      setFolderHandle(folderHandle);
+      setHandle(pickerHandle);
       setFileList(fileList.filter(e => e.file.name !== '.DS_Store'));
     } catch (error) {
       console.error("Error accessing folder:", error);

@@ -2,10 +2,10 @@
 
 import FolderPicker from '@/components/FolderPicker';
 import FileList from '@/components/list/FileList';
-import { useFolderContext } from '@/context/FolderContext';
+import { useFileContext } from '@/context/FileContext';
 
 export default function Home() {
-  const { fileList } = useFolderContext();
+  const { fileList } = useFileContext();
 
   return (
     <div className="p-4">
