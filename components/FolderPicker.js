@@ -8,7 +8,7 @@ export default function FolderPicker() {
 
   const openFolder = async () => {
     try {
-      const pickerHandle = await window.showDirectoryPicker();
+      const pickerHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
       const fileList = [];
 
       for await (const [name, handle] of pickerHandle.entries()) {
