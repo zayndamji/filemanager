@@ -23,10 +23,11 @@ export default function FilePage() {
           <p><strong>Type:</strong> {entry.file.type || 'Unknown'}</p>
         </div>
       ) : (
-        <p>Please go back to Home to provide access to your files.</p>
+        <p>Please select a folder to provide access to your files.</p>
       )}
 
-      <p>Go to <Link href={`/`} className="text-blue-300 hover:underline">Home</Link></p>
+      <p>Select a <Link href={`/`} className="text-blue-300 hover:underline">new folder</Link></p>
+      <p>View <Link href={`/folder`} className="text-blue-300 hover:underline">other files</Link></p>
     </div>
   );
 }

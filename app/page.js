@@ -1,16 +1,13 @@
 'use client';
 
 import FolderPicker from '@/components/FolderPicker';
-import FileList from '@/components/list/FileList';
-import { useFileContext } from '@/context/FileContext';
 
 export default function Home() {
-  const { fileList } = useFileContext();
-
   return (
     <div className="p-4">
+      <h1>Welcome to File Manager! Start by selecting a folder to view.</h1>
+      <br />
       <FolderPicker />
-      <FileList fileList={fileList} />
     </div>
   );
 }

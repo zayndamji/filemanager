@@ -1,6 +1,9 @@
+import { useRouter } from 'next/navigation';
+
 import { useFileContext } from '@/context/FileContext';
 
 export default function FolderPicker() {
+  const router = useRouter();
   const { setFileList, setHandle } = useFileContext();
 
   const openFolder = async () => {
@@ -21,6 +24,8 @@ export default function FolderPicker() {
 
       setHandle(pickerHandle);
       setFileList(fileList.filter(e => e.file.name !== '.DS_Store'));
+
+      router.push('/folder');
     } catch (error) {
       console.error("Error accessing folder:", error);
     }
