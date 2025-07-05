@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 
-import FolderPicker from "@/components/FolderPicker";
 import FileList from "@/components/FileList";
 
 export default function FileManagerClient() {
@@ -11,7 +10,6 @@ export default function FileManagerClient() {
       <h2 className="text-2xl font-bold">Encrypt File Manager</h2>
 
       <div>
-        <FolderPicker /> &nbsp;
         <Link href="/upload" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-full cursor-pointer">Upload Files</Link> &nbsp;
         <Link href="/gallery" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-full cursor-pointer">View Gallery</Link>
       </div>

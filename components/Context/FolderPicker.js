@@ -1,3 +1,5 @@
+'use client';
+
 import { useFileContext } from '@/context/FileContext';
 
 export default function FolderPicker() {
@@ -14,8 +16,8 @@ export default function FolderPicker() {
   };
 
   return (
-    <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full cursor-pointer" onClick={openFolder}>
-      Give Access to Folder
+    <button className="bg-black text-white font-bold py-2 px-4 block border cursor-pointer" onClick={openFolder}>
+      Select Folder
     </button>
   );
 }

@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
-import FolderPicker from "@/components/FolderPicker";
 import EncryptUploader from "@/components/FileManager/EncryptUploader";
 
 export default function UploadPage() {
@@ -14,8 +13,6 @@ export default function UploadPage() {
       <div>
         <Link href="/" className="text-blue-500 hover:underline">&larr; Back to Home</Link>
       </div>
-
-      <FolderPicker />
 
       <h2 className="text-2xl font-bold">Upload Encrypted Files</h2>
 
