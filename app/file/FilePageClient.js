@@ -15,7 +15,7 @@ import { decryptData } from '@/utils/crypto';
 export default function FilePageClient() {
   const searchParams = useSearchParams();
   const uuid = searchParams.get("uuid");
-  const { handle } = useFileContext();
+  const { fileList } = useFileContext();
   const { password } = usePasswordContext();
 
   const [fileBlob, setFileBlob] = useState(null);
@@ -31,20 +31,22 @@ export default function FilePageClient() {
     setFilePreviewMeta(null);
     setStatus("");
 
-    if (!uuid || !handle || !password) return;
+    if (!uuid || !fileList || !password) return;
 
     (async () => {
       try {
         setStatus("Decrypting...");
 
         // Main file
-        const fileHandle = await handle.getFileHandle(`${uuid}.enc`);
-        const file = await fileHandle.getFile();
+        const fileEntry = fileList.find(f => f.name === `${uuid}.enc`);
+        if (!fileEntry) throw new Error("File not found");
+        const file = await fileEntry.getFile();
         const fileData = new Uint8Array(await file.arrayBuffer());
         const decrypted = await decryptData(fileData, password);
 
-        const metadataHandle = await handle.getFileHandle(`${uuid}.metadata.enc`);
-        const metadataFile = await metadataHandle.getFile();
+        const metadataEntry = fileList.find(f => f.name === `${uuid}.metadata.enc`);
+        if (!metadataEntry) throw new Error("Metadata not found");
+        const metadataFile = await metadataEntry.getFile();
         const metadataData = new Uint8Array(await metadataFile.arrayBuffer());
         const decryptedMetadataBuffer = await decryptData(metadataData, password);
         const metadataJson = new TextDecoder().decode(decryptedMetadataBuffer);
@@ -55,22 +57,26 @@ export default function FilePageClient() {
 
         // Preview file (if available)
         try {
-          const previewHandle = await handle.getFileHandle(`${uuid}.preview.enc`);
-          const previewFile = await previewHandle.getFile();
-          const previewData = new Uint8Array(await previewFile.arrayBuffer());
-          const decryptedPreview = await decryptData(previewData, password);
-          setFilePreviewBlob(new Blob([decryptedPreview]));
+          const previewEntry = fileList.find(f => f.name === `${uuid}.preview.enc`);
+          if (previewEntry) {
+            const previewFile = await previewEntry.getFile();
+            const previewData = new Uint8Array(await previewFile.arrayBuffer());
+            const decryptedPreview = await decryptData(previewData, password);
+            setFilePreviewBlob(new Blob([decryptedPreview]));
+          }
         } catch (err) {
           console.warn("No preview file found or failed to decrypt preview:", err);
         }
 
         try {
-          const previewMetaHandle = await handle.getFileHandle(`${uuid}.metadata.preview.enc`);
-          const previewMetaFile = await previewMetaHandle.getFile();
-          const previewMetaData = new Uint8Array(await previewMetaFile.arrayBuffer());
-          const decryptedPreviewMetaBuffer = await decryptData(previewMetaData, password);
-          const previewMetaJson = new TextDecoder().decode(decryptedPreviewMetaBuffer);
-          setFilePreviewMeta(JSON.parse(previewMetaJson));
+          const previewMetaEntry = fileList.find(f => f.name === `${uuid}.metadata.preview.enc`);
+          if (previewMetaEntry) {
+            const previewMetaFile = await previewMetaEntry.getFile();
+            const previewMetaData = new Uint8Array(await previewMetaFile.arrayBuffer());
+            const decryptedPreviewMetaBuffer = await decryptData(previewMetaData, password);
+            const previewMetaJson = new TextDecoder().decode(decryptedPreviewMetaBuffer);
+            setFilePreviewMeta(JSON.parse(previewMetaJson));
+          }
         } catch (err) {
           console.warn("No preview metadata found or failed to decrypt:", err);
         }
@@ -83,7 +89,7 @@ export default function FilePageClient() {
         setFileMeta(null);
       }
     })();
-  }, [uuid, handle, password]);
+  }, [uuid, fileList, password]);
 
   return (
     <div className="p-4 max-w-4xl mx-auto space-y-4">

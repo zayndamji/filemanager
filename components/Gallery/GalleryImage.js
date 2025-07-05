@@ -2,16 +2,21 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { decryptData } from "@/utils/crypto";
 
-export default function GalleryImage({ uuid, meta, password, handle }) {
+export default function GalleryImage({ uuid, meta, password, fileList }) {
   const [src, setSrc] = useState(null);
 
   useEffect(() => {
     let url = null;
     const load = async () => {
-      if (!handle || !password) return;
+      if (!fileList || !password) return;
+      
       try {
-        const previewHandle = await handle.getFileHandle(`${uuid}.preview.enc`);
-        const previewFile = await previewHandle.getFile();
+        const previewEntry = fileList.find(
+          (entry) => entry.kind === "file" && entry.name === `${uuid}.preview.enc`
+        );
+        if (!previewEntry) return setSrc(null);
+
+        const previewFile = await previewEntry.getFile();
         const previewData = new Uint8Array(await previewFile.arrayBuffer());
         const decrypted = await decryptData(previewData, password);
         const blob = new Blob([decrypted], { type: meta.type });
@@ -25,7 +30,7 @@ export default function GalleryImage({ uuid, meta, password, handle }) {
     return () => {
       if (url) URL.revokeObjectURL(url);
     };
-  }, [handle, password, uuid, meta.type]);
+  }, [fileList, password, uuid, meta.type]);
 
   return (
     <Link

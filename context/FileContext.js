@@ -16,8 +16,7 @@ export function FileProvider({ children }) {
       for await (const entry of directoryHandle.values()) {
         const entryPath = `${path}${entry.name}`;
         if (entry.kind === 'file') {
-          // Add the file handle along with its full relative path
-          files.push({ handle: entry, path: entryPath });
+          files.push(entry);
         } else if (entry.kind === 'directory') {
           await scanDirectory(entry, `${entryPath}/`);
         }

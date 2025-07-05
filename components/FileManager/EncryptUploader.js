@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import { generateUUID, encryptData } from '@/utils/crypto';
 
-export default function EncryptUploader({ handle, password, setStatus, refreshAndDecryptFileList }) {
+export default function EncryptUploader({ password, setStatus, refreshAndDecryptFileList }) {
   const [uploadFiles, setUploadFiles] = useState([]);
   const [folderPath, setFolderPath] = useState([]);
   const [tagsInput, setTagsInput] = useState('');
@@ -31,8 +31,6 @@ export default function EncryptUploader({ handle, password, setStatus, refreshAn
         const uuid = generateUUID();
         const fileData = await uploadFile.arrayBuffer();
         const encryptedFile = await encryptData(fileData, password);
-
-        let hasPreview = false;
 
         if (uploadFile.type.startsWith("image/")) {
           try {
@@ -72,11 +70,8 @@ export default function EncryptUploader({ handle, password, setStatus, refreshAn
             const writablePreviewMeta = await previewMetaHandle.createWritable();
             await writablePreviewMeta.write(encryptedPreviewMetadata);
             await writablePreviewMeta.close();
-
-            hasPreview = true;
           } catch (previewErr) {
             console.warn("Preview generation failed:", previewErr);
-            hasPreview = false;
           }
         }
 

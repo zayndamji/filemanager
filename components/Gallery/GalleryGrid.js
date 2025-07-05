@@ -4,18 +4,18 @@ import { useEffect, useState } from 'react';
 import { decryptData } from '@/utils/crypto';
 import GalleryImage from "@/components/Gallery/GalleryImage";
 
-export default function GalleryGrid({ handle, password }) {
+export default function GalleryGrid({ fileList, password }) {
   const [previews, setPreviews] = useState([]);
   const [maxImages, setMaxImages] = useState(40);
 
   useEffect(() => {
     const loadPreviews = async () => {
       setPreviews([]);
-      if (!handle || !password) return;
+      if (!fileList || !password) return;
 
       const found = [];
 
-      for await (const entry of handle.values()) {
+      for (const entry of fileList) {
         if (entry.kind === 'file' && entry.name.endsWith('.metadata.preview.enc')) {
           const uuid = entry.name.replace('.metadata.preview.enc', '');
           try {
@@ -37,7 +37,7 @@ export default function GalleryGrid({ handle, password }) {
     };
 
     loadPreviews();
-  }, [handle, password, maxImages]);
+  }, [fileList, password, maxImages]);
 
   return (
     <div className="space-y-4">
@@ -71,7 +71,7 @@ export default function GalleryGrid({ handle, password }) {
             uuid={uuid}
             meta={meta}
             password={password}
-            handle={handle}
+            fileList={fileList}
           />
         ))}
       </div>

@@ -10,9 +10,8 @@ import { usePasswordContext } from '@/context/PasswordContext';
 import { decryptData } from '@/utils/crypto';
 
 export default function FileList() {
-  const { handle, refreshFileList } = useFileContext();
+  const { fileList, refreshFileList } = useFileContext();
   const { password } = usePasswordContext();
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [decryptedFiles, setDecryptedFiles] = useState([]);
@@ -29,27 +28,18 @@ export default function FileList() {
     setCurrentPath(parsedPath);
   }, [searchParams]);
 
-  // Push path updates to URL
-  const updatePath = (pathArray) => {
-    const newPath = pathArray.join('/');
-    const url = newPath ? `?path=${encodeURIComponent(newPath)}` : '/';
-    router.push(url);
-  };
-
   const navigateToSubfolder = (folderName) => {
     const newPath = [...currentPath, folderName];
     setCurrentPath(newPath);
-    updatePath(newPath);
   };
 
   const navigateUp = () => {
     const newPath = currentPath.slice(0, -1);
     setCurrentPath(newPath);
-    updatePath(newPath);
   };
 
   const refreshAndDecryptFileList = useCallback(async () => {
-    if (!handle || !password) {
+    if (!password) {
       setDecryptedFiles([]);
       return;
     }
@@ -57,7 +47,7 @@ export default function FileList() {
     await refreshFileList();
     const metadataEntries = [];
 
-    for await (const entry of handle.values()) {
+    for await (const entry of fileList) {
       if (entry.kind === "file" && entry.name.endsWith(".metadata.enc")) {
         metadataEntries.push(entry);
       }
@@ -94,11 +84,11 @@ export default function FileList() {
       lastDecryptedFilesRef.current = filtered;
       setDecryptedFiles(filtered);
     }
-  }, [handle, password, refreshFileList]);
+  }, [fileList, password, refreshFileList]);
 
   useEffect(() => {
     refreshAndDecryptFileList();
-  }, [handle, password, refreshAndDecryptFileList]);
+  }, [fileList, password, refreshAndDecryptFileList]);
 
   // Filter files in current folder
   const filesInCurrentFolder = decryptedFiles.filter(file => {

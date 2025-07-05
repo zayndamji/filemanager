@@ -10,7 +10,7 @@ import FolderPicker from '@/components/FolderPicker';
 import FileList from '@/components/FileList';
 
 export default function GalleryPage() {
-  const { handle } = useFileContext();
+  const { fileList } = useFileContext();
   const { password } = usePasswordContext();
 
   return (
@@ -23,7 +23,7 @@ export default function GalleryPage() {
 
       <h2 className="text-2xl font-bold mb-4">Image Gallery</h2>
       
-      <GalleryGrid handle={handle} password={password} />
+      <GalleryGrid fileList={fileList} password={password} />
 
       <FileList />
     </div>
