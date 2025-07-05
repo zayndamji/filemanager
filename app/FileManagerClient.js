@@ -90,7 +90,8 @@ export default function FileManagerClient() {
 
       <div>
         <FolderPicker /> &nbsp;
-        <Link href="/upload" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-full cursor-pointer">Upload Files</Link>
+        <Link href="/upload" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-full cursor-pointer">Upload Files</Link> &nbsp;
+        <Link href="/gallery" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-full cursor-pointer">View Gallery</Link>
       </div>
 
       <FileList
