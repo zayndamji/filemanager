@@ -4,7 +4,10 @@ import Link from 'next/link';
 export default function FileList({ fileList }) {
   return (
     <div className="mt-6">
-      <h3 className="font-semibold mb-2">Files</h3>
+      {fileList.length == 0 && (
+        <p className="text-sm text-gray-500">No files found.</p>
+      )}
+
       <ul className="space-y-1">
         {fileList.map(file => (
           <li key={file.uuid}>

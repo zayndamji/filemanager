@@ -67,7 +67,7 @@ export default function FileManagerHome() {
       <h2 className="text-2xl font-bold">Encrypt File Manager</h2>
 
       <div>
-        <Link href="/upload" className="text-blue-500 hover:underline">Upload Files</Link>
+        <Link href="/upload" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-full cursor-pointer">Upload Files</Link>
       </div>
 
       <FolderPicker />
