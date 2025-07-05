@@ -1,6 +1,6 @@
-import React from "react";
+import Link from "next/link";
 
-export default function FileList({ fileList, onFileClick }) {
+export default function FileList({ fileList }) {
   return (
     <div>
       {fileList.length > 0 && (
@@ -8,12 +8,12 @@ export default function FileList({ fileList, onFileClick }) {
           <div className="list-disc pl-5 mt-2 space-y-1">
             {fileList.map(({ name, uuid }, index) => (
               <div key={uuid || index}>
-                <button
+                <Link
                   className="text-blue-500 hover:underline"
-                  onClick={() => onFileClick?.({ name, uuid })}
+                  href={`/file?uuid=${encodeURIComponent(uuid)}`}
                 >
                   {name}
-                </button>
+                </Link>
               </div>
             ))}
           </div>

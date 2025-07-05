@@ -1,5 +1,6 @@
 import AudioFile from "./AudioFile";
 import TextFile from "./TextFile";
+import ImageFile from "./ImageFile";
 
 export default function FileViewer({ file }) {
   return (
@@ -8,8 +9,10 @@ export default function FileViewer({ file }) {
         <div className='mb-4'>
           {file.type.startsWith('audio') ? (
             <AudioFile file={file} />
-          ) : file.type.startsWith('text') ? (
+          ) : (file.type.startsWith('text') || file.type == 'application/json') ? (
             <TextFile file={file} />
+          ) : file.type.startsWith('image') ? (
+            <ImageFile file={file} />
           ) : (
             <p>Unsupported file type: {file.type}</p>
           )}

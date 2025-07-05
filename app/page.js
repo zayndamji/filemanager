@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from "react";
+
 import { useFileContext } from '@/context/FileContext';
+import { usePasswordContext } from '@/context/PasswordContext';
 import FolderPicker from "@/components/FolderPicker";
 import FileList from "@/components/FileList";
 
@@ -83,7 +85,7 @@ const decryptData = async (data, password) => {
 export default function FileManager() {
   console.log("FileManager: render");
 
-  const [password, setPassword] = useState("");
+  const { password, setPassword } = usePasswordContext();
   const [uploadFiles, setUploadFiles] = useState([]);
   const [status, setStatus] = useState("");
   const [decryptedFiles, setDecryptedFiles] = useState([]);
@@ -186,7 +188,7 @@ export default function FileManager() {
         const encryptedFile = await encryptData(fileData, password);
         console.log(`Encrypted data for ${uploadFile.name} (size: ${encryptedFile.byteLength})`);
 
-        const metadata = { name: uploadFile.name };
+        const metadata = { name: uploadFile.name, type: uploadFile.type, uuid };
         const metadataJson = JSON.stringify(metadata);
         const metadataBuffer = new TextEncoder().encode(metadataJson);
         const encryptedMetadata = await encryptData(metadataBuffer, password);
@@ -261,35 +263,30 @@ export default function FileManager() {
   };
 
   return (
-    <div className="p-4 max-w-lg mx-auto space-y-4">
+    <div className="p-4 max-w-4xl mx-auto space-y-4">
       <h2 className="text-2xl font-bold">Encrypt File Manager</h2>
-      <div className="my-4">
-        <input
-          type="password"
-          placeholder="Enter password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          className="block border p-2 w-full"
-          autoComplete="new-password"
-        />
-      </div>
+      
       <FolderPicker />
+
       <div className="my-4">
         <input
           type="file"
           multiple
           onChange={e => setUploadFiles(Array.from(e.target.files))}
-          className="bg-blue-500 hover:bg-blue-700 text-white py-2 px-4 rounded-full"
+          className="bg-blue-500 hover:bg-blue-700 text-white py-2 px-4 rounded-full mb-2 cursor-pointer"
         />
+
         <button
           onClick={handleEncryptUpload}
-          className="bg-blue-500 text-white px-4 py-2 rounded ml-2"
+          className="bg-blue-500 text-white px-4 py-2 rounded ml-2 cursor-pointer"
           disabled={!uploadFiles.length || !password || !handle}
         >
           Encrypt & Upload
         </button>
       </div>
+
       <div className="text-sm text-gray-600">{status}</div>
+
       <div className="mt-6">
         <h3 className="font-semibold mb-2">Files</h3>
         <FileList
