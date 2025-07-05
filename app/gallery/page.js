@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useFileContext } from '@/context/FileContext';
 import { usePasswordContext } from '@/context/PasswordContext';
 import GalleryGrid from '@/components/Gallery/GalleryGrid';
+import FolderPicker from '@/components/FolderPicker';
 
 export default function GalleryPage() {
   const { handle } = useFileContext();
@@ -15,6 +16,8 @@ export default function GalleryPage() {
       <div>
         <Link href="/" className="text-blue-500 hover:underline">&larr; Back to Home</Link>
       </div>
+
+      <FolderPicker />
 
       <h2 className="text-2xl font-bold mb-4">Image Gallery</h2>
       
