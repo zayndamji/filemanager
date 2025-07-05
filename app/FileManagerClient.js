@@ -7,7 +7,7 @@ import FileList from "@/components/FileList";
 
 export default function FileManagerClient() {
   return (
-    <div className="p-4 max-w-4xl mx-auto space-y-4">
+    <div className="p-4 max-w-4xl mx-auto space-y-6">
       <h2 className="text-2xl font-bold">Encrypt File Manager</h2>
 
       <div>

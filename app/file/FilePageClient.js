@@ -92,7 +92,7 @@ export default function FilePageClient() {
   }, [uuid, fileList, password]);
 
   return (
-    <div className="p-4 max-w-4xl mx-auto space-y-4">
+    <div className="p-4 max-w-4xl mx-auto space-y-6">
       <div className="space-y-1">
         {fileMeta ? (
           <Link

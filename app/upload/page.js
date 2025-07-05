@@ -10,14 +10,14 @@ export default function UploadPage() {
   const [status, setStatus] = useState("");
 
   return (
-    <div className="p-4 max-w-4xl mx-auto space-y-4">
-      <h2 className="text-2xl font-bold">Upload Encrypted Files</h2>
-
+    <div className="p-4 max-w-4xl mx-auto space-y-6">
       <div>
         <Link href="/" className="text-blue-500 hover:underline">&larr; Back to Home</Link>
       </div>
 
       <FolderPicker />
+
+      <h2 className="text-2xl font-bold">Upload Encrypted Files</h2>
 
       <EncryptUploader
         setStatus={setStatus}
