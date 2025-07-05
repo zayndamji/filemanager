@@ -12,7 +12,7 @@ import FileList from "@/components/FileManager/FileList";
 
 import { decryptData } from '@/utils/crypto';
 
-export default function FileManagerHome() {
+export default function FileManagerClient() {
   const { password } = usePasswordContext();
   const { handle, refreshFileList } = useFileContext();
 
