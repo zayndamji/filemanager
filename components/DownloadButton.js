@@ -1,4 +1,4 @@
-export default function DownloadButton({ fileBlob, fileMeta }) {
+export default function DownloadButton({ fileBlob, fileMeta, downloadSymbol }) {
   const handleDownload = () => {
     if (!fileBlob || !fileMeta) return;
 
@@ -13,7 +13,7 @@ export default function DownloadButton({ fileBlob, fileMeta }) {
       onClick={handleDownload}
       className="bg-green-500 text-white px-4 py-2 rounded mt-2 cursor-pointer"
     >
-      Download
+      {downloadSymbol || "Download"}
     </button>
   );
 }

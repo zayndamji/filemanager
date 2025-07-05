@@ -71,7 +71,7 @@ export default function FilePageClient() {
       {fileBlob && fileMeta && (
         <div>
           <FileViewer fileBlob={fileBlob} fileMeta={fileMeta} />
-          <DownloadButton fileBlob={fileBlob} fileMeta={fileMeta} />
+          <DownloadButton fileBlob={fileBlob} fileMeta={fileMeta} downloadSymbol={"Download"} />
         </div>
       )}
     </div>
