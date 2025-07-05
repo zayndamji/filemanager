@@ -1,20 +1,19 @@
 'use client'
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import Link from 'next/link';
 
 import { useFileContext } from '@/context/FileContext';
 import { usePasswordContext } from '@/context/PasswordContext';
 
 import FolderPicker from "@/components/FolderPicker";
-import EncryptUploader from "@/components/FileManager/EncryptUploader";
 import FileList from "@/components/FileManager/FileList";
 
 import { decryptData } from '@/utils/crypto';
 
-export default function FileManager() {
+export default function FileManagerHome() {
   const { password } = usePasswordContext();
   const { handle, refreshFileList } = useFileContext();
-  const [status, setStatus] = useState("");
   const [decryptedFiles, setDecryptedFiles] = useState([]);
   const lastDecryptedFilesRef = useRef([]);
 
@@ -67,16 +66,11 @@ export default function FileManager() {
     <div className="p-4 max-w-4xl mx-auto space-y-4">
       <h2 className="text-2xl font-bold">Encrypt File Manager</h2>
 
-      <FolderPicker />
+      <div>
+        <Link href="/upload" className="text-blue-500 hover:underline">Upload Files</Link>
+      </div>
 
-      <EncryptUploader
-        handle={handle}
-        password={password}
-        setStatus={setStatus}
-        refreshAndDecryptFileList={refreshAndDecryptFileList}
-      />
-      
-      <div className="text-sm text-gray-600">{status}</div>
+      <FolderPicker />
 
       <FileList fileList={decryptedFiles} />
     </div>

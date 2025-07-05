@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { generateUUID, encryptData } from '@/utils/crypto';
 
@@ -8,6 +9,7 @@ export default function EncryptUploader({ handle, password, setStatus, refreshAn
   const [uploadFiles, setUploadFiles] = useState([]);
   const [folderPath, setFolderPath] = useState([]);
   const [tagsInput, setTagsInput] = useState('');
+  const router = useRouter();
 
   const handleEncryptUpload = async () => {
     if (!uploadFiles.length || !password || !handle) {
@@ -67,6 +69,9 @@ export default function EncryptUploader({ handle, password, setStatus, refreshAn
     setFolderPath([]);
     setTagsInput('');
     await refreshAndDecryptFileList();
+
+    // Redirect to homepage after upload
+    router.push('/');
   };
 
   return (
@@ -94,7 +99,7 @@ export default function EncryptUploader({ handle, password, setStatus, refreshAn
 
       <input
         type="text"
-        placeholder="Tags (seperated by commas, e.g., tag1,tag2,tag3)"
+        placeholder="Tags (separated by commas, e.g., tag1,tag2,tag3)"
         value={tagsInput}
         onChange={e => setTagsInput(e.target.value)}
         className="w-full px-3 py-2 border rounded-md"
