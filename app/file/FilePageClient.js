@@ -58,13 +58,19 @@ export default function FilePageClient() {
 
   return (
     <div className="p-4 max-w-4xl mx-auto space-y-4">
-      <Link href="/" className="text-blue-500 hover:underline">&larr; Back to Home</Link>
-      <h2 className="text-2xl font-bold">File Viewer</h2>
+      <div>
+        <Link href="/" className="text-blue-500 hover:underline">&larr; Back to Home</Link>
+      </div>
+
+      <h2 className="text-2xl font-bold">
+        {fileMeta ? fileMeta.name : "Loading..."}
+      </h2>
+
       <div className="text-sm text-gray-600">{(!fileBlob || !fileMeta) && status}</div>
 
       {fileBlob && fileMeta && (
         <div>
-          <FileViewer file={new File([fileBlob], fileMeta.name, { type: fileMeta.type })} />
+          <FileViewer fileBlob={fileBlob} fileMeta={fileMeta} />
           <DownloadButton fileBlob={fileBlob} fileMeta={fileMeta} />
         </div>
       )}

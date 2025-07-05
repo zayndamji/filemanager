@@ -2,28 +2,33 @@ import AudioFile from "./FileTypes/AudioFile";
 import TextFile from "./FileTypes/TextFile";
 import ImageFile from "./FileTypes/ImageFile";
 
-export default function FileViewer({ file }) {
+export default function FileViewer({ fileBlob, fileMeta }) {
   return (
     <div>
-      {file.type && (
+      {fileMeta.type && (
         <div className='mb-4'>
-          {file.type.startsWith('audio') ? (
-            <AudioFile file={file} />
-          ) : (file.type.startsWith('text') || file.type == 'application/json') ? (
-            <TextFile file={file} />
-          ) : file.type.startsWith('image') ? (
-            <ImageFile file={file} />
+          {fileMeta.type.startsWith('audio') ? (
+            <AudioFile file={fileBlob} />
+          ) : (fileMeta.type.startsWith('text') || fileMeta.type === 'application/json') ? (
+            <TextFile file={fileBlob} />
+          ) : fileMeta.type.startsWith('image') ? (
+            <ImageFile file={fileBlob} />
           ) : (
-            <p>Unsupported file type: {file.type}</p>
+            <p>Unsupported file type: {fileMeta.type}</p>
           )}
         </div>
       )}
 
       <div className='mb-4'>
-        <p><strong>Name:</strong> {file.name}</p>
-        <p><strong>Size:</strong> {file.size} bytes</p>
-        <p><strong>Type:</strong> {file.type || 'Unknown'}</p>
+        <p><strong>Name:</strong> {fileMeta.name}</p>
+        <p><strong>Size:</strong> {fileMeta.size} bytes</p>
+        <p><strong>Type:</strong> {fileMeta.type || 'Unknown'}</p>
+        <p><strong>UUID:</strong> {fileMeta.uuid}</p>
+        <p><strong>Folder Path:</strong> {fileMeta.folderPath?.length ? `/${fileMeta.folderPath.join('/')}` : '/'}</p>
+        {fileMeta.tags && fileMeta.tags.length > 0 && (
+          <p><strong>Tags:</strong> {fileMeta.tags.join(', ')}</p>
+        )}
       </div>
     </div>
-  )
+  );
 }

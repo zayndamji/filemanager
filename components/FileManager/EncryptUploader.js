@@ -6,6 +6,8 @@ import { generateUUID, encryptData } from '@/utils/crypto';
 
 export default function EncryptUploader({ handle, password, setStatus, refreshAndDecryptFileList }) {
   const [uploadFiles, setUploadFiles] = useState([]);
+  const [folderPath, setFolderPath] = useState([]);
+  const [tagsInput, setTagsInput] = useState('');
 
   const handleEncryptUpload = async () => {
     if (!uploadFiles.length || !password || !handle) {
@@ -17,13 +19,24 @@ export default function EncryptUploader({ handle, password, setStatus, refreshAn
     let successCount = 0;
     let failCount = 0;
 
+    const tags = tagsInput
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(tag => tag.length > 0);
+
     for (const uploadFile of uploadFiles) {
       try {
         const uuid = generateUUID();
         const fileData = await uploadFile.arrayBuffer();
         const encryptedFile = await encryptData(fileData, password);
 
-        const metadata = { name: uploadFile.name, type: uploadFile.type, uuid };
+        const metadata = {
+          name: uploadFile.name,
+          type: uploadFile.type,
+          uuid,
+          folderPath,
+          tags,
+        };
         const metadataJson = JSON.stringify(metadata);
         const metadataBuffer = new TextEncoder().encode(metadataJson);
         const encryptedMetadata = await encryptData(metadataBuffer, password);
@@ -51,20 +64,45 @@ export default function EncryptUploader({ handle, password, setStatus, refreshAn
     setStatus(result.length ? result.join(", ") : "No files processed.");
 
     setUploadFiles([]);
+    setFolderPath([]);
+    setTagsInput('');
     await refreshAndDecryptFileList();
   };
 
   return (
-    <div className="my-4">
+    <div className="my-4 space-y-3">
       <input
         type="file"
         multiple
         onChange={e => setUploadFiles(Array.from(e.target.files))}
-        className="bg-blue-500 hover:bg-blue-700 text-white py-2 px-4 rounded-full mb-2 cursor-pointer"
+        className="bg-blue-500 hover:bg-blue-700 text-white py-2 px-4 rounded-full cursor-pointer"
       />
+
+      <input
+        type="text"
+        placeholder="Folder path (e.g., /images/subfolder)"
+        onChange={e => {
+          const raw = e.target.value.trim();
+          const parts = raw
+            .split('/')
+            .map(p => p.trim())
+            .filter(p => p.length > 0);
+          setFolderPath(parts);
+        }}
+        className="w-full px-3 py-2 border rounded-md"
+      />
+
+      <input
+        type="text"
+        placeholder="Tags (seperated by commas, e.g., tag1,tag2,tag3)"
+        value={tagsInput}
+        onChange={e => setTagsInput(e.target.value)}
+        className="w-full px-3 py-2 border rounded-md"
+      />
+
       <button
         onClick={handleEncryptUpload}
-        className="bg-blue-500 text-white px-4 py-2 rounded ml-2 cursor-pointer"
+        className="bg-blue-500 text-white px-4 py-2 rounded cursor-pointer"
         disabled={!uploadFiles.length || !password || !handle}
       >
         Encrypt & Upload
