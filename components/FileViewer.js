@@ -19,10 +19,12 @@ export default function FileViewer({ fileBlob, fileMeta, showDetails = true }) {
         </div>
       )}
 
-      {showDetails && (
+      {showDetails && fileMeta && (
         <div className='mb-4'>
           <p><strong>Name:</strong> {fileMeta.name}</p>
-          <p><strong>Size:</strong> {fileMeta.size} bytes</p>
+          {fileBlob && (
+            <p><strong>Size:</strong> {fileBlob.size} bytes</p>
+          )}
           <p><strong>Type:</strong> {fileMeta.type || 'Unknown'}</p>
           <p><strong>UUID:</strong> {fileMeta.uuid}</p>
           <p><strong>Folder Path:</strong> {fileMeta.folderPath?.length ? `/${fileMeta.folderPath.join('/')}` : '/'}</p>
