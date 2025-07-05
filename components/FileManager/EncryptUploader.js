@@ -32,13 +32,62 @@ export default function EncryptUploader({ handle, password, setStatus, refreshAn
         const fileData = await uploadFile.arrayBuffer();
         const encryptedFile = await encryptData(fileData, password);
 
+        let hasPreview = false;
+
+        if (uploadFile.type.startsWith("image/")) {
+          try {
+            const imageBitmap = await createImageBitmap(uploadFile);
+            const canvas = new OffscreenCanvas(400, 400);
+            const ctx = canvas.getContext('2d');
+
+            const size = Math.min(imageBitmap.width, imageBitmap.height);
+            const sx = (imageBitmap.width - size) / 2;
+            const sy = (imageBitmap.height - size) / 2;
+
+            ctx.drawImage(imageBitmap, sx, sy, size, size, 0, 0, 400, 400);
+            const blob = await canvas.convertToBlob({ type: 'image/jpeg' });
+            const previewBuffer = await blob.arrayBuffer();
+            const encryptedPreview = await encryptData(previewBuffer, password);
+
+            const previewHandle = await handle.getFileHandle(`${uuid}.preview.enc`, { create: true });
+            const writablePreview = await previewHandle.createWritable();
+            await writablePreview.write(encryptedPreview);
+            await writablePreview.close();
+
+            // Create and store preview metadata
+            const previewMetadata = {
+              name: `preview-${uploadFile.name}`,
+              type: 'image/jpeg',
+              uuid,
+              folderPath,
+              tags,
+              isPreview: true
+            };
+
+            const previewMetadataJson = JSON.stringify(previewMetadata);
+            const previewMetadataBuffer = new TextEncoder().encode(previewMetadataJson);
+            const encryptedPreviewMetadata = await encryptData(previewMetadataBuffer, password);
+
+            const previewMetaHandle = await handle.getFileHandle(`${uuid}.metadata.preview.enc`, { create: true });
+            const writablePreviewMeta = await previewMetaHandle.createWritable();
+            await writablePreviewMeta.write(encryptedPreviewMetadata);
+            await writablePreviewMeta.close();
+
+            hasPreview = true;
+          } catch (previewErr) {
+            console.warn("Preview generation failed:", previewErr);
+            hasPreview = false;
+          }
+        }
+
         const metadata = {
           name: uploadFile.name,
           type: uploadFile.type,
           uuid,
           folderPath,
-          tags,
+          tags
         };
+
         const metadataJson = JSON.stringify(metadata);
         const metadataBuffer = new TextEncoder().encode(metadataJson);
         const encryptedMetadata = await encryptData(metadataBuffer, password);
@@ -70,7 +119,6 @@ export default function EncryptUploader({ handle, password, setStatus, refreshAn
     setTagsInput('');
     await refreshAndDecryptFileList();
 
-    // Redirect to homepage after upload
     router.push('/');
   };
 
