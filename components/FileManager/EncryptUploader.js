@@ -15,6 +15,7 @@ export default function EncryptUploader({ setStatus }) {
   const [uploadFiles, setUploadFiles] = useState([]);
   const [folderPath, setFolderPath] = useState([]);
   const [tagsInput, setTagsInput] = useState('');
+  const [customFileName, setCustomFileName] = useState('');
 
   const router = useRouter();
 
@@ -39,6 +40,8 @@ export default function EncryptUploader({ setStatus }) {
         const fileData = await uploadFile.arrayBuffer();
         const encryptedFile = await encryptData(fileData, password);
 
+        const finalName = customFileName.trim() || uploadFile.name;
+
         if (uploadFile.type.startsWith("image/")) {
           try {
             const imageBitmap = await createImageBitmap(uploadFile);
@@ -59,9 +62,8 @@ export default function EncryptUploader({ setStatus }) {
             await writablePreview.write(encryptedPreview);
             await writablePreview.close();
 
-            // Create and store preview metadata
             const previewMetadata = {
-              name: `preview-${uploadFile.name}`,
+              name: `preview-${finalName}`,
               type: 'image/jpeg',
               uuid,
               folderPath,
@@ -83,7 +85,7 @@ export default function EncryptUploader({ setStatus }) {
         }
 
         const metadata = {
-          name: uploadFile.name,
+          name: finalName,
           type: uploadFile.type,
           uuid,
           folderPath,
@@ -119,6 +121,7 @@ export default function EncryptUploader({ setStatus }) {
     setUploadFiles([]);
     setFolderPath([]);
     setTagsInput('');
+    setCustomFileName('');
 
     router.push('/');
   };
@@ -134,7 +137,15 @@ export default function EncryptUploader({ setStatus }) {
 
       <input
         type="text"
-        placeholder="Folder path (e.g., /images/subfolder)"
+        placeholder="File name (default: original name)"
+        value={customFileName}
+        onChange={e => setCustomFileName(e.target.value)}
+        className="w-full px-3 py-2 border rounded-md"
+      />
+
+      <input
+        type="text"
+        placeholder="Folder path (e.g., /images/subfolder) (default: /)"
         onChange={e => {
           const raw = e.target.value.trim();
           const parts = raw
