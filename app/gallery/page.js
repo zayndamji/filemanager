@@ -4,8 +4,10 @@ import Link from 'next/link';
 
 import { useFileContext } from '@/context/FileContext';
 import { usePasswordContext } from '@/context/PasswordContext';
+
 import GalleryGrid from '@/components/Gallery/GalleryGrid';
 import FolderPicker from '@/components/FolderPicker';
+import FileList from '@/components/FileList';
 
 export default function GalleryPage() {
   const { handle } = useFileContext();
@@ -22,6 +24,8 @@ export default function GalleryPage() {
       <h2 className="text-2xl font-bold mb-4">Image Gallery</h2>
       
       <GalleryGrid handle={handle} password={password} />
+
+      <FileList />
     </div>
   );
 }
