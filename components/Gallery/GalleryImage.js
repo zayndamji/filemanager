@@ -26,10 +26,8 @@ export default function GalleryImage({ uuid, meta, password, fileList }) {
         setSrc(null);
       }
     };
+    
     load();
-    return () => {
-      if (url) URL.revokeObjectURL(url);
-    };
   }, [fileList, password, uuid, meta.type]);
 
   return (

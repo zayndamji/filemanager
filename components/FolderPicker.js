@@ -1,43 +1,15 @@
 import { useFileContext } from '@/context/FileContext';
 
 export default function FolderPicker() {
-  const { setFileList, setHandle } = useFileContext();
+  const { setHandle } = useFileContext();
 
   const openFolder = async () => {
     try {
       const pickerHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-      const fileList = [];
-
-      for await (const [name, handle] of pickerHandle.entries()) {
-        if (handle.kind === "file") {
-          const file = await handle.getFile();
-          fileList.push({ file, path: name });
-        }
-        
-        else if (handle.kind === "directory") {
-          await readDirectoryRecursive(handle, name, fileList);
-        }
-      }
-
+      console.log("Setting handle:", pickerHandle);
       setHandle(pickerHandle);
-      setFileList(fileList.filter(e => e.file.name !== '.DS_Store'));
     } catch (error) {
       console.error("Error accessing folder:", error);
-    }
-  };
-
-  const readDirectoryRecursive = async (directory, basePath, fileList) => {
-    for await (const [name, handle] of directory.entries()) {
-      const fullPath = `${basePath}/${name}`;
-      
-      if (handle.kind === "file") {
-        const file = await handle.getFile();
-        fileList.push({ file, path: fullPath });
-      }
-      
-      else if (handle.kind === "directory") {
-        await readDirectoryRecursive(handle, fullPath, fileList);
-      }
     }
   };
 

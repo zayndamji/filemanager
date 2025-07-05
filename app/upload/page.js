@@ -3,13 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
-import { usePasswordContext } from '@/context/PasswordContext';
-
 import FolderPicker from "@/components/FolderPicker";
 import EncryptUploader from "@/components/FileManager/EncryptUploader";
 
 export default function UploadPage() {
-  const { password } = usePasswordContext();
   const [status, setStatus] = useState("");
 
   return (
@@ -23,9 +20,7 @@ export default function UploadPage() {
       <FolderPicker />
 
       <EncryptUploader
-        password={password}
         setStatus={setStatus}
-        refreshAndDecryptFileList={() => {}}
       />
 
       <div className="text-sm text-gray-600">{status}</div>

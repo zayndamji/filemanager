@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
 const FileContext = createContext();
 
@@ -10,25 +10,34 @@ export function FileProvider({ children }) {
 
   const refreshFileList = useCallback(async () => {
     if (!handle) return;
+    
     const files = [];
-
-    async function scanDirectory(directoryHandle, path = '') {
-      for await (const entry of directoryHandle.values()) {
-        const entryPath = `${path}${entry.name}`;
-        if (entry.kind === 'file') {
-          files.push(entry);
-        } else if (entry.kind === 'directory') {
-          await scanDirectory(entry, `${entryPath}/`);
-        }
+    for await (const entry of handle.values()) {
+      if (entry.kind === 'file') {
+        console.log('file');
+        files.push(entry);
       }
     }
 
-    await scanDirectory(handle);
-    setFileList(files);
-  }, [handle]);
+    // only update if changed
+    if (
+      files.length !== fileList.length
+    ) {
+      setFileList(files);
+    }
+  }, [handle, fileList]);
+
+  // memoize context value
+  const contextValue = useMemo(() => ({
+    fileList,
+    setFileList,
+    handle,
+    setHandle,
+    refreshFileList,
+  }), [fileList, setFileList, handle, setHandle, refreshFileList]);
 
   return (
-    <FileContext.Provider value={{ fileList, setFileList, handle, setHandle, refreshFileList }}>
+    <FileContext.Provider value={contextValue}>
       {children}
     </FileContext.Provider>
   );

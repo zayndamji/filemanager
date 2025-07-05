@@ -9,10 +9,15 @@ export default function GalleryGrid({ fileList, password }) {
   const [maxImages, setMaxImages] = useState(40);
 
   useEffect(() => {
-    const loadPreviews = async () => {
-      setPreviews([]);
-      if (!fileList || !password) return;
+    let canceled = false;
 
+    const loadPreviews = async () => {
+      if (!fileList || !password) {
+        console.log("No fileList or password. Skipping preview load.");
+        return;
+      }
+
+      console.log("Starting to load previews...");
       const found = [];
 
       for (const entry of fileList) {
@@ -23,20 +28,46 @@ export default function GalleryGrid({ fileList, password }) {
             const metadataData = new Uint8Array(await metadataFile.arrayBuffer());
             const decryptedMetadataBuffer = await decryptData(metadataData, password);
             const metadata = JSON.parse(new TextDecoder().decode(decryptedMetadataBuffer));
+
             if (metadata.type?.startsWith('image/')) {
               found.push({ uuid, meta: metadata });
             }
-          } catch {
-            // Ignore corrupt/decryption-failed entries
+          } catch (err) {
+            console.warn(`Error decrypting metadata for ${entry.name}:`, err);
           }
         }
       }
 
-      found.sort((a, b) => (a.meta.name || '').localeCompare(b.meta.name || '') || a.uuid.localeCompare(b.uuid));
-      setPreviews(found.slice(0, maxImages));
+      found.sort((a, b) =>
+        (a.meta.name || '').localeCompare(b.meta.name || '') || a.uuid.localeCompare(b.uuid)
+      );
+      const newPreviews = found.slice(0, maxImages);
+
+      if (!canceled) {
+        setPreviews((prev) => {
+          const prevKeys = new Set(prev.map(p => p.uuid));
+          const newKeys = new Set(newPreviews.map(p => p.uuid));
+
+          const changed = prev.length !== newPreviews.length ||
+            [...prevKeys].some(k => !newKeys.has(k)) ||
+            [...newKeys].some(k => !prevKeys.has(k));
+
+          if (changed) {
+            console.log("Updating previews");
+            return newPreviews;
+          } else {
+            console.log("No change in previews");
+            return prev;
+          }
+        });
+      }
     };
 
     loadPreviews();
+
+    return () => {
+      canceled = true;
+    };
   }, [fileList, password, maxImages]);
 
   return (

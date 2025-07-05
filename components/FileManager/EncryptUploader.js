@@ -5,10 +5,17 @@ import { useRouter } from 'next/navigation';
 
 import { generateUUID, encryptData } from '@/utils/crypto';
 
-export default function EncryptUploader({ password, setStatus, refreshAndDecryptFileList }) {
+import { useFileContext } from '@/context/FileContext';
+import { usePasswordContext } from '@/context/PasswordContext';
+
+export default function EncryptUploader({ setStatus }) {
+  const { handle } = useFileContext();
+  const { password } = usePasswordContext();
+
   const [uploadFiles, setUploadFiles] = useState([]);
   const [folderPath, setFolderPath] = useState([]);
   const [tagsInput, setTagsInput] = useState('');
+
   const router = useRouter();
 
   const handleEncryptUpload = async () => {
@@ -112,7 +119,6 @@ export default function EncryptUploader({ password, setStatus, refreshAndDecrypt
     setUploadFiles([]);
     setFolderPath([]);
     setTagsInput('');
-    await refreshAndDecryptFileList();
 
     router.push('/');
   };
@@ -150,7 +156,7 @@ export default function EncryptUploader({ password, setStatus, refreshAndDecrypt
 
       <button
         onClick={handleEncryptUpload}
-        className="bg-blue-500 text-white px-4 py-2 rounded cursor-pointer"
+        className="bg-blue-500 text-white px-4 py-2 rounded cursor-pointer disabled:bg-gray-400 disabled:cursor-not-allowed"
         disabled={!uploadFiles.length || !password || !handle}
       >
         Encrypt & Upload
