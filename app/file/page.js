@@ -6,49 +6,17 @@ import Link from "next/link";
 
 import { useFileContext } from '@/context/FileContext';
 import { usePasswordContext } from '@/context/PasswordContext';
+
 import FileViewer from "@/components/FileViewer";
+import DownloadButton from "@/components/DownloadButton";
 
-const saltLength = 16;
-const ivLength = 12;
-const iterations = 100000;
-
-const deriveKey = async (password, salt) => {
-  const encoder = new TextEncoder();
-  const keyMaterial = await window.crypto.subtle.importKey(
-    "raw",
-    encoder.encode(password),
-    { name: "PBKDF2" },
-    false,
-    ["deriveKey"]
-  );
-  return window.crypto.subtle.deriveKey(
-    {
-      name: "PBKDF2",
-      salt,
-      iterations,
-      hash: "SHA-256",
-    },
-    keyMaterial,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"]
-  );
-};
-
-const decryptData = async (data, password) => {
-  const salt = data.slice(0, saltLength);
-  const iv = data.slice(saltLength, saltLength + ivLength);
-  const encrypted = data.slice(saltLength + ivLength);
-  const key = await deriveKey(password, salt);
-
-  return window.crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encrypted);
-};
+import { decryptData } from '@/utils/crypto';
 
 export default function FilePage() {
   const searchParams = useSearchParams();
   const uuid = searchParams.get("uuid");
   const { handle } = useFileContext();
-  const { password, setPassword } = usePasswordContext();
+  const { password } = usePasswordContext();
 
   const [fileBlob, setFileBlob] = useState(null);
   const [fileMeta, setFileMeta] = useState(null);
@@ -63,11 +31,14 @@ export default function FilePage() {
     (async () => {
       try {
         setStatus("Decrypting...");
+
+        // Decrypt file
         const fileHandle = await handle.getFileHandle(`${uuid}.enc`);
         const file = await fileHandle.getFile();
         const fileData = new Uint8Array(await file.arrayBuffer());
         const decrypted = await decryptData(fileData, password);
 
+        // Decrypt metadata
         const metadataHandle = await handle.getFileHandle(`${uuid}.metadata.enc`);
         const metadataFile = await metadataHandle.getFile();
         const metadataData = new Uint8Array(await metadataFile.arrayBuffer());
@@ -80,35 +51,23 @@ export default function FilePage() {
         setStatus("File decrypted.");
       } catch (e) {
         setStatus("Failed to decrypt file. Wrong password or missing file.");
+        console.error(e);
         setFileBlob(null);
         setFileMeta(null);
       }
     })();
   }, [uuid, handle, password]);
 
-  const handleDownload = () => {
-    if (!fileBlob || !fileMeta) return;
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(fileBlob);
-    link.download = fileMeta.name || "file";
-    link.click();
-  };
-
   return (
     <div className="p-4 max-w-4xl mx-auto space-y-4">
       <Link href="/" className="text-blue-500 hover:underline">&larr; Back to Home</Link>
       <h2 className="text-2xl font-bold">File Viewer</h2>
       <div className="text-sm text-gray-600">{(!fileBlob || !fileMeta) && status}</div>
+
       {fileBlob && fileMeta && (
         <div>
           <FileViewer file={new File([fileBlob], fileMeta.name, { type: fileMeta.type })} />
-
-          <button
-            onClick={handleDownload}
-            className="bg-green-500 text-white px-4 py-2 rounded mt-2"
-          >
-            Download
-          </button>
+          <DownloadButton fileBlob={fileBlob} fileMeta={fileMeta} />
         </div>
       )}
     </div>

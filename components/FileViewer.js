@@ -1,6 +1,6 @@
-import AudioFile from "./AudioFile";
-import TextFile from "./TextFile";
-import ImageFile from "./ImageFile";
+import AudioFile from "./FileTypes/AudioFile";
+import TextFile from "./FileTypes/TextFile";
+import ImageFile from "./FileTypes/ImageFile";
 
 export default function FileViewer({ file }) {
   return (
