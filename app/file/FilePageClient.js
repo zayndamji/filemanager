@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
 import { useFileContext } from '@/context/FileContext';
@@ -58,8 +58,16 @@ export default function FilePageClient() {
 
   return (
     <div className="p-4 max-w-4xl mx-auto space-y-4">
-      <div>
-        <Link href="/" className="text-blue-500 hover:underline">&larr; Back to Home</Link>
+      <div className="space-y-1">
+        {fileMeta && (
+          <Link
+            href={`/?path=${encodeURIComponent(fileMeta.folderPath.join('/'))}`}
+            className="text-blue-500 hover:underline block"
+          >
+            &larr; Go Back to /{fileMeta.folderPath.join('/')}
+          </Link>
+        )}
+        <Link href="/" className="text-blue-500 hover:underline block">&larr; Go Back Home</Link>
       </div>
 
       <h2 className="text-2xl font-bold">

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 import { useFileContext } from '@/context/FileContext';
@@ -14,8 +15,22 @@ import { decryptData } from '@/utils/crypto';
 export default function FileManagerHome() {
   const { password } = usePasswordContext();
   const { handle, refreshFileList } = useFileContext();
+
   const [decryptedFiles, setDecryptedFiles] = useState([]);
+  const [currentPath, setCurrentPath] = useState([]);
+
   const lastDecryptedFilesRef = useRef([]);
+  const searchParams = useSearchParams();
+
+  // Sync currentPath from URL
+  useEffect(() => {
+    const rawPath = searchParams.get("path") || "/";
+    const parsedPath = rawPath
+      .split('/')
+      .map(segment => segment.trim())
+      .filter(Boolean);
+    setCurrentPath(parsedPath);
+  }, [searchParams]);
 
   const refreshAndDecryptFileList = useCallback(async () => {
     if (!handle || !password) {
@@ -39,7 +54,14 @@ export default function FileManagerHome() {
         const metadataData = new Uint8Array(await metadataFile.arrayBuffer());
         const decryptedMetadataBuffer = await decryptData(metadataData, password);
         const metadata = JSON.parse(new TextDecoder().decode(decryptedMetadataBuffer));
-        return { uuid, name: metadata.name, entry };
+        return {
+          uuid,
+          name: metadata.name,
+          type: metadata.type,
+          folderPath: metadata.folderPath,
+          tags: metadata.tags || [],
+          entry
+        };
       } catch {
         return null;
       }
@@ -72,7 +94,11 @@ export default function FileManagerHome() {
 
       <FolderPicker />
 
-      <FileList fileList={decryptedFiles} />
+      <FileList
+        fileList={decryptedFiles}
+        currentPath={currentPath}
+        setCurrentPath={setCurrentPath}
+      />
     </div>
   );
 }
