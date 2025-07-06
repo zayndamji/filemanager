@@ -9,8 +9,8 @@ import { useFileContext } from '@/context/FileContext';
 import { usePasswordContext } from '@/context/PasswordContext';
 
 export default function EncryptUploader({ setStatus }) {
-  const { handle } = useFileContext();
   const { password } = usePasswordContext();
+  const { handle, refreshFileList } = useFileContext();
 
   const [uploadFiles, setUploadFiles] = useState([]);
   const [folderPath, setFolderPath] = useState([]);
@@ -122,6 +122,8 @@ export default function EncryptUploader({ setStatus }) {
     setFolderPath([]);
     setTagsInput('');
     setCustomFileName('');
+
+    refreshFileList();
 
     router.push('/');
   };

@@ -11,24 +11,24 @@ export function FileProvider({ children }) {
   const [fileList, setFileList] = useState([]);
   const [handle, setHandle] = useState(null);
 
-  useEffect(() => {
+  const refreshFileList = async () => {
+    console.log('Refreshing file list...');
+
     if (!handle) return;
-
-    const refreshFileList = async () => {
-      console.log('Refreshing file list...');
-      
-      const files = [];
-      for await (const entry of handle.values()) {
-        if (entry.kind === 'file') {
-          files.push(entry);
-        }
+    
+    const files = [];
+    for await (const entry of handle.values()) {
+      if (entry.kind === 'file') {
+        files.push(entry);
       }
+    }
 
-      if (files.length !== fileList.length) {
-        setFileList(files);
-      }
-    };
+    if (files.length !== fileList.length) {
+      setFileList(files);
+    }
+  };
 
+  useEffect(() => {
     refreshFileList();
   }, [handle, password]);
 
@@ -37,8 +37,9 @@ export function FileProvider({ children }) {
     fileList,
     setFileList,
     handle,
-    setHandle
-  }), [fileList, setFileList, handle, setHandle]);
+    setHandle,
+    refreshFileList
+  }), [fileList, setFileList, handle, setHandle, refreshFileList]);
 
   return (
     <FileContext.Provider value={contextValue}>
