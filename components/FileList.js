@@ -10,7 +10,7 @@ import { usePasswordContext } from '@/context/PasswordContext';
 import { decryptData } from '@/utils/crypto';
 
 export default function FileList() {
-  const { fileList, refreshFileList } = useFileContext();
+  const { fileList } = useFileContext();
   const { password } = usePasswordContext();
   const searchParams = useSearchParams();
 
@@ -44,7 +44,6 @@ export default function FileList() {
       return;
     }
 
-    await refreshFileList();
     const metadataEntries = [];
 
     for await (const entry of fileList) {
@@ -84,11 +83,11 @@ export default function FileList() {
       lastDecryptedFilesRef.current = filtered;
       setDecryptedFiles(filtered);
     }
-  }, [fileList, password, refreshFileList]);
+  }, [fileList, password]);
 
   useEffect(() => {
     refreshAndDecryptFileList();
-  }, [fileList, password, refreshAndDecryptFileList]);
+  }, [fileList, password]);
 
   // Filter files in current folder
   const filesInCurrentFolder = decryptedFiles.filter(file => {

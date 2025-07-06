@@ -29,15 +29,15 @@ export default function RootLayout({ children }) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <FileProvider>
-          <PasswordProvider>
+        <PasswordProvider>
+          <FileProvider>
             <div className="flex items-center gap-2 p-4 max-w-4xl mx-auto space-y-6 align-items-center justify-content-center">
               <PasswordInput />
               <FolderPicker />
             </div>
             {children}
-          </PasswordProvider>
-        </FileProvider>
+          </FileProvider>
+        </PasswordProvider>
       </body>
     </html>
   );
