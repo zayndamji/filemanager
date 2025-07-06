@@ -14,9 +14,10 @@ export default function EncryptUploader({ setStatus }) {
 
   const [uploadFiles, setUploadFiles] = useState([]);
   const [folderPath, setFolderPath] = useState([]);
-  const [tagsInput, setTagsInput] = useState('');
   const [customFileName, setCustomFileName] = useState('');
   const [extension, setExtension] = useState('');
+  const [tags, setTags] = useState([]);
+  const [tagInput, setTagInput] = useState('');
 
   const router = useRouter();
 
@@ -34,6 +35,25 @@ export default function EncryptUploader({ setStatus }) {
     }
   }, [uploadFiles]);
 
+  const addTag = (tag) => {
+    const cleaned = tag.trim();
+    if (cleaned.length && !tags.includes(cleaned)) {
+      setTags(prev => [...prev, cleaned]);
+    }
+  };
+
+  const handleTagKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag(tagInput);
+      setTagInput('');
+    }
+  };
+
+  const removeTag = (tagToRemove) => {
+    setTags(tags.filter(tag => tag !== tagToRemove));
+  };
+
   const handleEncryptUpload = async () => {
     if (!uploadFiles.length || !password || !handle) {
       setStatus("Provide file(s), password, and grant folder access.");
@@ -44,10 +64,7 @@ export default function EncryptUploader({ setStatus }) {
     let successCount = 0;
     let failCount = 0;
 
-    const tags = tagsInput
-      .split(',')
-      .map(tag => tag.trim())
-      .filter(tag => tag.length > 0);
+    const tagsToUse = [...tags];
 
     for (const uploadFile of uploadFiles) {
       try {
@@ -86,7 +103,7 @@ export default function EncryptUploader({ setStatus }) {
               type: 'image/jpeg',
               uuid,
               folderPath,
-              tags,
+              tags: tagsToUse,
               isPreview: true
             };
 
@@ -108,7 +125,7 @@ export default function EncryptUploader({ setStatus }) {
           type: uploadFile.type,
           uuid,
           folderPath,
-          tags
+          tags: tagsToUse
         };
 
         const metadataJson = JSON.stringify(metadata);
@@ -139,9 +156,10 @@ export default function EncryptUploader({ setStatus }) {
 
     setUploadFiles([]);
     setFolderPath([]);
-    setTagsInput('');
     setCustomFileName('');
     setExtension('');
+    setTags([]);
+    setTagInput('');
 
     refreshFileList();
     router.push('/');
@@ -188,13 +206,34 @@ export default function EncryptUploader({ setStatus }) {
         className="w-full px-3 py-2 border rounded-md"
       />
 
-      <input
-        type="text"
-        placeholder="Tags (separated by commas, e.g., tag1,tag2,tag3)"
-        value={tagsInput}
-        onChange={e => setTagsInput(e.target.value)}
-        className="w-full px-3 py-2 border rounded-md"
-      />
+      <div>
+        <input
+          type="text"
+          placeholder="Enter tags (press Enter or comma)"
+          value={tagInput}
+          onChange={e => setTagInput(e.target.value)}
+          onKeyDown={handleTagKeyDown}
+          className="w-full px-3 py-2 border rounded-md"
+        />
+
+        <div className="flex flex-wrap gap-2 mt-2">
+          {tags.map((tag, idx) => (
+            <div
+              key={idx}
+              className="border bg-black text-white px-3 py-1 rounded-full flex items-center gap-2"
+            >
+              <span>{tag}</span>
+              <button
+                type="button"
+                onClick={() => removeTag(tag)}
+                className="text-white hover:text-red-400 font-bold"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <button
         onClick={handleEncryptUpload}
