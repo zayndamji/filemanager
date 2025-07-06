@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { generateUUID, encryptData } from '@/utils/crypto';
@@ -16,8 +16,23 @@ export default function EncryptUploader({ setStatus }) {
   const [folderPath, setFolderPath] = useState([]);
   const [tagsInput, setTagsInput] = useState('');
   const [customFileName, setCustomFileName] = useState('');
+  const [extension, setExtension] = useState('');
 
   const router = useRouter();
+
+  useEffect(() => {
+    if (uploadFiles.length > 0) {
+      const firstFile = uploadFiles[0];
+      const nameParts = firstFile.name.split('.');
+      if (nameParts.length > 1) {
+        setExtension(nameParts.pop());
+      } else {
+        setExtension('');
+      }
+    } else {
+      setExtension('');
+    }
+  }, [uploadFiles]);
 
   const handleEncryptUpload = async () => {
     if (!uploadFiles.length || !password || !handle) {
@@ -40,7 +55,11 @@ export default function EncryptUploader({ setStatus }) {
         const fileData = await uploadFile.arrayBuffer();
         const encryptedFile = await encryptData(fileData, password);
 
-        const finalName = customFileName.trim() || uploadFile.name;
+        let finalName = uploadFile.name;
+        if (customFileName.trim()) {
+          const base = customFileName.trim();
+          finalName = base + (extension ? `.${extension}` : '');
+        }
 
         if (uploadFile.type.startsWith("image/")) {
           try {
@@ -122,9 +141,9 @@ export default function EncryptUploader({ setStatus }) {
     setFolderPath([]);
     setTagsInput('');
     setCustomFileName('');
+    setExtension('');
 
     refreshFileList();
-
     router.push('/');
   };
 
@@ -137,13 +156,23 @@ export default function EncryptUploader({ setStatus }) {
         className="bg-blue-500 hover:bg-blue-700 text-white py-2 px-4 rounded-full cursor-pointer"
       />
 
-      <input
-        type="text"
-        placeholder="File name (default: original name)"
-        value={customFileName}
-        onChange={e => setCustomFileName(e.target.value)}
-        className="w-full px-3 py-2 border rounded-md"
-      />
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          placeholder="File name (default: original name)"
+          value={customFileName}
+          onChange={e => setCustomFileName(e.target.value)}
+          className="flex-grow px-3 py-2 border rounded-md"
+        />
+        <span className="text-gray-600">.</span>
+        <input
+          type="text"
+          value={extension}
+          onChange={e => setExtension(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
+          placeholder="ext"
+          className="w-[10ch] px-3 py-2 border rounded-md text-center"
+        />
+      </div>
 
       <input
         type="text"
