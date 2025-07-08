@@ -44,7 +44,7 @@ export default function GalleryGrid({ fileList, password }) {
       );
 
       if (!canceled) {
-        setPreviews(found.slice(0, maxImages));
+        setPreviews(found);
         setAllTags([...collectedTags].sort());
       }
     };
@@ -80,7 +80,8 @@ export default function GalleryGrid({ fileList, password }) {
   // filter previews by selected tag
   const visiblePreviews = useMemo(() => {
     if (!selectedTag) return previews;
-    return previews.filter(p => (p.meta.tags || []).map(t => t.toLowerCase()).includes(selectedTag));
+    return previews.filter(p => (p.meta.tags || []).map(t => t.toLowerCase()).includes(selectedTag))
+                   .slice(0, maxImages);
   }, [previews, selectedTag]);
 
   return (
