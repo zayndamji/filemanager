@@ -8,7 +8,7 @@ export default function GalleryGrid({ fileList, password }) {
   const [previews, setPreviews] = useState([]);
   const [allTags, setAllTags] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTag, setSelectedTag] = useState(null);
+  const [selectedTags, setSelectedTags] = useState([]);
   const [viewportWidth, setViewportWidth] = useState(1200);
   const [maxImages, setMaxImages] = useState(40);
 
@@ -74,32 +74,39 @@ export default function GalleryGrid({ fileList, password }) {
     return () => { canceled = true; };
   }, [fileList, password]);
 
-  const filteredTagSuggestions = useMemo(() => {
-    const normalize = str => str.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const words = normalize(searchQuery).split(/\s+/).filter(Boolean);
-
-    let suggestions = searchQuery
-      ? allTags.filter(tag => {
-          const normalizedTag = normalize(tag);
-          return words.some(word => normalizedTag.includes(word));
-        }).slice(0, 7)
-      : allTags.slice(0, 7);
-
-    if (selectedTag && !suggestions.includes(selectedTag)) {
-      suggestions = [selectedTag, ...suggestions.filter(tag => tag !== selectedTag)];
-    }
-
-    return suggestions;
-  }, [allTags, searchQuery, selectedTag]);
+  const normalize = str => str.toLowerCase().replace(/[^a-z0-9]/g, '');
 
   const visiblePreviews = useMemo(() => {
-    const filtered = selectedTag
-      ? previews.filter(p =>
-          (p.meta.tags || []).map(t => t.toLowerCase()).includes(selectedTag)
-        )
-      : previews;
-    return filtered.slice(0, maxImages);
-  }, [previews, selectedTag, maxImages]);
+    return previews.filter(p => {
+      const imageTags = (p.meta.tags || []).map(t => normalize(t));
+      return selectedTags.every(tag => imageTags.includes(tag));
+    }).slice(0, maxImages);
+  }, [previews, selectedTags, maxImages]);
+
+  const filteredTagSuggestions = useMemo(() => {
+    const words = normalize(searchQuery).split(/\s+/).filter(Boolean);
+
+    // Get tags from currently matching images
+    const matchingImages = previews.filter(p => {
+      const imageTags = (p.meta.tags || []).map(t => normalize(t));
+      return selectedTags.every(tag => imageTags.includes(tag));
+    });
+
+    const validTags = new Set();
+    matchingImages.forEach(p => {
+      (p.meta.tags || []).forEach(tag => validTags.add(normalize(tag)));
+    });
+
+    let suggestions = [...validTags].filter(tag => {
+      if (selectedTags.includes(tag)) return false;
+      if (searchQuery) {
+        return words.some(word => tag.includes(word));
+      }
+      return true;
+    });
+
+    return suggestions.slice(0, 7);
+  }, [previews, selectedTags, allTags, searchQuery]);
 
   const combinedPreviews = useMemo(() => {
     return visiblePreviews.map(({ uuid, meta }) => {
@@ -115,6 +122,12 @@ export default function GalleryGrid({ fileList, password }) {
     });
   }, [visiblePreviews]);
 
+  const toggleTag = tag => {
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2">
@@ -126,15 +139,20 @@ export default function GalleryGrid({ fileList, password }) {
           className="w-full border px-3 py-2 rounded-md"
         />
         <div className="flex flex-wrap gap-2">
+          {selectedTags.map(tag => (
+            <button
+              key={tag}
+              onClick={() => toggleTag(tag)}
+              className="px-3 py-1 rounded-full border bg-blue-500 text-white border-blue-600 text-sm"
+            >
+              {tag} ✕
+            </button>
+          ))}
           {filteredTagSuggestions.map(tag => (
             <button
               key={tag}
-              onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
-              className={`px-3 py-1 rounded-full border text-sm ${
-                selectedTag === tag
-                  ? 'bg-blue-500 text-white border-blue-600'
-                  : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-              }`}
+              onClick={() => toggleTag(tag)}
+              className="px-3 py-1 rounded-full border bg-gray-100 text-gray-800 hover:bg-gray-200 text-sm"
             >
               {tag}
             </button>
