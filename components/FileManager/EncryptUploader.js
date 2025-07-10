@@ -81,19 +81,24 @@ export default function EncryptUploader({ setStatus }) {
         if (uploadFile.type.startsWith("image/")) {
           try {
             const imageBitmap = await createImageBitmap(uploadFile);
-            const canvas = new OffscreenCanvas(400, 400);
+            const originalWidth = imageBitmap.width;
+            const originalHeight = imageBitmap.height;
+
+            const previewWidth = 400;
+            const previewHeight = Math.round((originalHeight / originalWidth) * previewWidth);
+
+            const canvas = new OffscreenCanvas(previewWidth, previewHeight);
             const ctx = canvas.getContext('2d');
 
-            const size = Math.min(imageBitmap.width, imageBitmap.height);
-            const sx = (imageBitmap.width - size) / 2;
-            const sy = (imageBitmap.height - size) / 2;
+            // Draw the entire image scaled to the new size
+            ctx.drawImage(imageBitmap, 0, 0, originalWidth, originalHeight, 0, 0, previewWidth, previewHeight);
 
-            ctx.drawImage(imageBitmap, sx, sy, size, size, 0, 0, 400, 400);
             const blob = await canvas.convertToBlob({ type: 'image/jpeg' });
             const previewBuffer = await blob.arrayBuffer();
             const encryptedPreview = await encryptData(previewBuffer, password);
 
-            const previewHandle = await handle.getFileHandle(`${uuid}.preview.enc`, { create: true });
+            const previewFilename = `${uuid}.preview.enc`;
+            const previewHandle = await handle.getFileHandle(previewFilename, { create: true });
             const writablePreview = await previewHandle.createWritable();
             await writablePreview.write(encryptedPreview);
             await writablePreview.close();
@@ -104,14 +109,16 @@ export default function EncryptUploader({ setStatus }) {
               uuid,
               folderPath,
               tags: tagsToUse,
-              isPreview: true
+              isPreview: true,
+              dimensions: { width: previewWidth, height: previewHeight }
             };
 
             const previewMetadataJson = JSON.stringify(previewMetadata);
             const previewMetadataBuffer = new TextEncoder().encode(previewMetadataJson);
             const encryptedPreviewMetadata = await encryptData(previewMetadataBuffer, password);
 
-            const previewMetaHandle = await handle.getFileHandle(`${uuid}.metadata.preview.enc`, { create: true });
+            const previewMetaFilename = `${uuid}.metadata.preview.enc`;
+            const previewMetaHandle = await handle.getFileHandle(previewMetaFilename, { create: true });
             const writablePreviewMeta = await previewMetaHandle.createWritable();
             await writablePreviewMeta.write(encryptedPreviewMetadata);
             await writablePreviewMeta.close();
