@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { sha256 } from '@noble/hashes/sha256';
-const crypto = require('crypto');
+import RNSimpleCrypto from 'react-native-simple-crypto';
+// import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface PasswordContextType {
   password: string;
@@ -14,7 +15,7 @@ interface PasswordProviderProps {
   children: ReactNode;
 }
 
-const salt = new Uint8Array(16); // you may want to persist/generate per user/session
+const salt = new Uint8Array(16); // static zeroed salt
 
 export function PasswordProvider({ children }: PasswordProviderProps) {
   const [password, setPassword] = useState<string>('');
@@ -25,26 +26,29 @@ export function PasswordProvider({ children }: PasswordProviderProps) {
       setDerivedKey(null);
       return;
     }
-    // Derive key once per password
-    const encoder = new TextEncoder();
-    const passwordBytes = encoder.encode(password);
-    console.log('[PasswordContext] Deriving key for password: [REDACTED], length:', passwordBytes.length);
-    crypto.pbkdf2(
-      Buffer.from(passwordBytes),
-      Buffer.from(salt),
-      100000,
-      32,
-      'sha256',
-      (err: Error | null, key: Buffer) => {
-        if (err) {
-          console.error('[PasswordContext] PBKDF2 error:', err);
-          setDerivedKey(null);
-        } else {
-          console.log('[PasswordContext] Derived key:', key && key.length);
-          setDerivedKey(new Uint8Array(key));
-        }
+    // Derive key once per password using native PBKDF2
+    const derive = async () => {
+      const encoder = new TextEncoder();
+      const passwordBytes = encoder.encode(password);
+      console.log('[PasswordContext] Deriving key for password: [REDACTED], length:', passwordBytes.length);
+      try {
+        const keyArray = await RNSimpleCrypto.PBKDF2.hash(
+          password,
+          salt,
+          20000,
+          32,
+          'SHA256'
+        );
+        // keyArray is ArrayBuffer, convert to Uint8Array
+        const key = new Uint8Array(keyArray);
+        console.log('[PasswordContext] Derived key:', key && key.length);
+        setDerivedKey(key);
+      } catch (err) {
+        console.error('[PasswordContext] PBKDF2 error:', err);
+        setDerivedKey(null);
       }
-    );
+    };
+    derive();
   }, [password]);
 
   return (
