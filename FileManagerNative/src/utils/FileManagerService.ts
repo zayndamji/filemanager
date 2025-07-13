@@ -256,15 +256,29 @@ export class FileManagerService {
   /**
    * Deletes all files in the app's document directory (not just encrypted ones)
    */
-  static async deleteAllFiles(): Promise<void> {
+  static async deleteAllFiles(derivedKey: Uint8Array): Promise<number> {
     const files = await RNFS.readDir(this.documentsPath);
-    for (const file of files) {
+    const metadataFiles = files.filter(file => file.name.endsWith('.metadata.enc'));
+    let deletedCount = 0;
+    for (const metadataFile of metadataFiles) {
+      const uuid = metadataFile.name.replace('.metadata.enc', '');
       try {
-        await RNFS.unlink(file.path);
+        // Try to decrypt metadata
+        await this.loadFileMetadata(uuid, derivedKey);
+        // If successful, delete the triplet
+        const filePath = this.getFilePath(uuid, 'file');
+        const metadataPath = this.getFilePath(uuid, 'metadata');
+        const previewPath = this.getFilePath(uuid, 'preview');
+        if (await RNFS.exists(filePath)) await RNFS.unlink(filePath);
+        if (await RNFS.exists(metadataPath)) await RNFS.unlink(metadataPath);
+        if (await RNFS.exists(previewPath)) await RNFS.unlink(previewPath);
+        deletedCount++;
       } catch (e) {
-        console.warn('Failed to delete file:', file.path, e);
+        // Could not decrypt metadata, skip
+        continue;
       }
     }
+    return deletedCount;
   }
 
   /**

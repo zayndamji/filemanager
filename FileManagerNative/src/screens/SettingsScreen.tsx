@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useFileContext } from '../context/FileContext';
+import { usePasswordContext } from '../context/PasswordContext';
 import { FileManagerService } from '../utils/FileManagerService';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const SettingsScreen = () => {
   const { encryptedFiles, refreshFileList } = useFileContext();
+  const { derivedKey } = usePasswordContext();
   const [deleting, setDeleting] = useState(false);
 
   const handleDeleteAll = async () => {
@@ -20,9 +22,10 @@ const SettingsScreen = () => {
           onPress: async () => {
             setDeleting(true);
             try {
-              await FileManagerService.deleteAllFiles();
+              if (!derivedKey) throw new Error('No password set');
+              const deletedCount = await FileManagerService.deleteAllFiles(derivedKey);
               await refreshFileList();
-              Alert.alert('Success', 'All files deleted.');
+              Alert.alert('Success', `${deletedCount} file${deletedCount === 1 ? '' : 's'} deleted.`);
             } catch (error) {
               Alert.alert('Error', 'Failed to delete all files.');
             } finally {
