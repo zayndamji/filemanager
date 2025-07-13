@@ -2,12 +2,24 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useFileContext } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import { FileManagerService } from '../utils/FileManagerService';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
+type RootStackParamList = {
+  Password: undefined;
+  Main: undefined;
+};
+
 const SettingsScreen = () => {
   const { encryptedFiles, refreshFileList } = useFileContext();
-  const { derivedKey } = usePasswordContext();
+  const { derivedKey, setPassword } = usePasswordContext();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+  const handleLogout = () => {
+    setPassword('');
+    navigation.reset({ index: 0, routes: [{ name: 'Password' }] });
+  };
   const [deleting, setDeleting] = useState(false);
 
   const handleDeleteAll = async () => {
@@ -49,6 +61,13 @@ const SettingsScreen = () => {
         <Text style={styles.deleteButtonText}>Delete All Files</Text>
       </TouchableOpacity>
       {deleting && <ActivityIndicator size="large" color="#ff3b30" style={{ marginTop: 16 }} />}
+      <TouchableOpacity
+        style={[styles.deleteButton, { backgroundColor: '#007AFF', marginTop: 24 }]}
+        onPress={handleLogout}
+      >
+        <Icon name="logout" size={24} color="#fff" />
+        <Text style={styles.deleteButtonText}>Log Out</Text>
+      </TouchableOpacity>
     </View>
   );
 };
