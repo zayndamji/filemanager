@@ -18,11 +18,185 @@ import { usePasswordContext } from '../context/PasswordContext';
 import { FileManagerService, EncryptedFile } from '../utils/FileManagerService';
 import FileViewer from '../components/FileViewer';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { darkTheme } from '../theme';
+import { ThemeContext } from '../theme';
 
 const { width } = Dimensions.get('window');
 const itemSize = (width - 48) / 3; // 3 columns with spacing
 const tallItemHeight = itemSize * 1.5; // Make images tall (1.5x aspect ratio)
+
+const getStyles = (theme: typeof import('../theme').darkTheme) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.background,
+  },
+  header: {
+    padding: 20,
+    backgroundColor: theme.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: theme.text,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    marginTop: 4,
+  },
+  listContainer: {
+    padding: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  row: {
+    justifyContent: 'space-between',
+  },
+  imageItem: {
+    width: itemSize,
+    marginBottom: 16,
+  },
+  imageContainer: {
+    width: itemSize,
+    height: tallItemHeight,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: theme.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.surface,
+    width: '100%',
+    height: '100%',
+  },
+  loadingText: {
+    fontSize: 10,
+    color: theme.textSecondary,
+    marginTop: 4,
+  },
+  encryptedBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: theme.error,
+    borderRadius: 8,
+    padding: 2,
+  },
+  encryptedOverlay: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.surface,
+    width: '100%',
+    height: '100%',
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderRadius: 8,
+  },
+  encryptedText: {
+    fontSize: 12,
+    color: theme.error,
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.textSecondary,
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    marginTop: 8,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    marginRight: 8,
+  },
+  input: {
+    backgroundColor: theme.inputBackground,
+    borderWidth: 1,
+    borderColor: theme.inputBorder,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    width: 60,
+    fontSize: 14,
+    color: theme.text,
+  },
+  searchBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 8,
+    width: '100%',
+  },
+  searchBarInput: {
+    backgroundColor: theme.inputBackground,
+    borderWidth: 1,
+    borderColor: theme.inputBorder,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 15,
+    color: theme.text,
+    flex: 1,
+  },
+  tagSelectorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.chipBackground,
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 8,
+    marginBottom: 4,
+  },
+  selectedTagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.chipBackground,
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 8,
+    marginBottom: 4, // match tagChip
+  },
+  tagChipText: {
+    color: theme.chipText,
+    fontSize: 13,
+    marginRight: 4,
+  },
+});
 
 const GalleryScreen = () => {
   const { encryptedFiles, refreshFileList, loading } = useFileContext();
@@ -35,6 +209,9 @@ const GalleryScreen = () => {
   const [maxPreviews, setMaxPreviews] = useState(18);
   const [tagSearch, setTagSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+  const { theme } = React.useContext(ThemeContext);
+  const styles = getStyles(theme);
 
   useEffect(() => {
     const images = encryptedFiles.filter(file => {
@@ -290,179 +467,5 @@ const GalleryScreen = () => {
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  searchBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 8,
-    width: '100%',
-  },
-  searchBarInput: {
-    backgroundColor: darkTheme.inputBackground,
-    borderWidth: 1,
-    borderColor: darkTheme.inputBorder,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 15,
-    color: darkTheme.text,
-    flex: 1,
-  },
-  tagSelectorRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  tagChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: darkTheme.chipBackground,
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginRight: 8,
-    marginBottom: 4,
-  },
-  selectedTagChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: darkTheme.chipBackground,
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginRight: 8,
-    marginBottom: 4, // match tagChip
-  },
-  tagChipText: {
-    color: darkTheme.chipText,
-    fontSize: 13,
-    marginRight: 4,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: darkTheme.background,
-  },
-  header: {
-    padding: 20,
-    backgroundColor: darkTheme.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: darkTheme.border,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: darkTheme.text,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: darkTheme.textSecondary,
-    marginTop: 4,
-  },
-  listContainer: {
-    padding: 16,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  row: {
-    justifyContent: 'space-between',
-  },
-  imageItem: {
-    width: itemSize,
-    marginBottom: 16,
-  },
-  imageContainer: {
-    width: itemSize,
-    height: tallItemHeight,
-    borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: darkTheme.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
-  loadingContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: darkTheme.surface,
-    width: '100%',
-    height: '100%',
-  },
-  loadingText: {
-    fontSize: 10,
-    color: darkTheme.textSecondary,
-    marginTop: 4,
-  },
-  encryptedBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: darkTheme.error,
-    borderRadius: 8,
-    padding: 2,
-  },
-  encryptedOverlay: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: darkTheme.surface,
-    width: '100%',
-    height: '100%',
-    borderWidth: 1,
-    borderColor: darkTheme.border,
-    borderRadius: 8,
-  },
-  encryptedText: {
-    fontSize: 12,
-    color: darkTheme.error,
-    marginTop: 4,
-    fontWeight: '600',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: darkTheme.textSecondary,
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: darkTheme.textSecondary,
-    marginTop: 8,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  inputLabel: {
-    fontSize: 14,
-    color: darkTheme.textSecondary,
-    marginRight: 8,
-  },
-  input: {
-    backgroundColor: darkTheme.inputBackground,
-    borderWidth: 1,
-    borderColor: darkTheme.inputBorder,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    width: 60,
-    fontSize: 14,
-    color: darkTheme.text,
-  },
-});
 
 export default GalleryScreen;

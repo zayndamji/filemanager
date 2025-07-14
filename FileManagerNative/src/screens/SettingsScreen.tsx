@@ -5,7 +5,7 @@ import { usePasswordContext } from '../context/PasswordContext';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { FileManagerService } from '../utils/FileManagerService';
-import { darkTheme } from '../theme';
+import { ThemeContext, darkTheme, lightTheme } from '../theme';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 type RootStackParamList = {
@@ -17,11 +17,20 @@ const SettingsScreen = () => {
   const { encryptedFiles, refreshFileList } = useFileContext();
   const { derivedKey, setPassword } = usePasswordContext();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+  const { theme, setTheme } = React.useContext(ThemeContext);
+  const [deleting, setDeleting] = useState(false);
+  const [isDark, setIsDark] = useState(theme === darkTheme);
+
   const handleLogout = () => {
     setPassword('');
     navigation.reset({ index: 0, routes: [{ name: 'Password' }] });
   };
-  const [deleting, setDeleting] = useState(false);
+
+  const handleToggleTheme = async () => {
+    const newTheme = isDark ? lightTheme : darkTheme;
+    setTheme(newTheme);
+    setIsDark(!isDark);
+  };
 
   const handleDeleteAll = async () => {
     Alert.alert(
@@ -51,56 +60,63 @@ const SettingsScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Settings</Text>
+    <View style={getStyles(theme).container}>
+      <Text style={getStyles(theme).title}>Settings</Text>
       <TouchableOpacity
-        style={[styles.deleteButton, deleting && styles.deleteButtonDisabled]}
+        style={[getStyles(theme).deleteButton, deleting && getStyles(theme).deleteButtonDisabled]}
         onPress={handleDeleteAll}
         disabled={deleting}
       >
-        <Icon name="delete-forever" size={24} color="#fff" />
-        <Text style={styles.deleteButtonText}>Delete All Files</Text>
+        <Icon name="delete-forever" size={24} color={theme.chipText} />
+        <Text style={getStyles(theme).deleteButtonText}>Delete All Files</Text>
       </TouchableOpacity>
-      {deleting && <ActivityIndicator size="large" color="#ff3b30" style={{ marginTop: 16 }} />}
+      {deleting && <ActivityIndicator size="large" color={theme.error} style={{ marginTop: 16 }} />}
       <TouchableOpacity
-        style={[styles.deleteButton, { backgroundColor: darkTheme.accent, marginTop: 24 }]}
+        style={[getStyles(theme).deleteButton, { backgroundColor: theme.accent, marginTop: 24 }]}
         onPress={handleLogout}
       >
-        <Icon name="logout" size={24} color={darkTheme.chipText} />
-        <Text style={styles.deleteButtonText}>Log Out</Text>
+        <Icon name="logout" size={24} color={theme.chipText} />
+        <Text style={getStyles(theme).deleteButtonText}>Log Out</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[getStyles(theme).deleteButton, { backgroundColor: theme.card, marginTop: 24 }]}
+        onPress={handleToggleTheme}
+      >
+        <Icon name={isDark ? 'brightness-4' : 'brightness-7'} size={24} color={theme.chipText} />
+        <Text style={getStyles(theme).deleteButtonText}>{isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</Text>
       </TouchableOpacity>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (theme: typeof darkTheme) => StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: darkTheme.background,
+    backgroundColor: theme.background,
     padding: 24,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: darkTheme.text,
+    color: theme.text,
     marginBottom: 32,
   },
   deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: darkTheme.error,
+    backgroundColor: theme.error,
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 8,
   },
   deleteButtonDisabled: {
-    backgroundColor: darkTheme.disabled,
+    backgroundColor: theme.disabled,
     opacity: 0.6,
   },
   deleteButtonText: {
-    color: darkTheme.chipText,
+    color: theme.chipText,
     fontSize: 18,
     fontWeight: 'bold',
     marginLeft: 12,

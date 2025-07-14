@@ -11,12 +11,99 @@ import { useFileContext } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
-import { darkTheme } from '../theme';
+import { ThemeContext } from '../theme';
+
+const getStyles = (theme: typeof import('../theme').darkTheme) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.background,
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: theme.background,
+  },
+  header: {
+    padding: 24,
+    backgroundColor: theme.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: theme.text,
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: theme.textSecondary,
+    marginBottom: 16,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginVertical: 24,
+  },
+  statCard: {
+    backgroundColor: theme.surface,
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    width: 140,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.accent,
+    marginTop: 8,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    marginTop: 4,
+  },
+  actionsContainer: {
+    marginTop: 16,
+    marginBottom: 32,
+  },
+  actionCard: {
+    backgroundColor: theme.surface,
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 16,
+    alignItems: 'center',
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  actionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.text,
+    marginTop: 8,
+  },
+  actionSubtitle: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+});
 
 const HomeScreen = () => {
   const { encryptedFiles } = useFileContext();
   const { password } = usePasswordContext();
   const navigation = useNavigation();
+  const { theme } = React.useContext(ThemeContext);
+  const styles = getStyles(theme);
 
   const totalFiles = encryptedFiles.length;
   const encryptedFilesCount = encryptedFiles.length; // All files are encrypted
@@ -76,90 +163,5 @@ const HomeScreen = () => {
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: darkTheme.background,
-  },
-  scrollView: {
-    flex: 1,
-    backgroundColor: darkTheme.background,
-  },
-  header: {
-    padding: 24,
-    backgroundColor: darkTheme.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: darkTheme.border,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: darkTheme.text,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: darkTheme.textSecondary,
-    marginBottom: 16,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginVertical: 24,
-  },
-  statCard: {
-    backgroundColor: darkTheme.surface,
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-    width: 140,
-    shadowColor: darkTheme.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: darkTheme.accent,
-    marginTop: 8,
-  },
-  statLabel: {
-    fontSize: 14,
-    color: darkTheme.textSecondary,
-    marginTop: 4,
-  },
-  actionsContainer: {
-    marginTop: 16,
-    marginBottom: 32,
-  },
-  actionCard: {
-    backgroundColor: darkTheme.surface,
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-    alignItems: 'center',
-    shadowColor: darkTheme.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  actionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: darkTheme.text,
-    marginTop: 8,
-  },
-  actionSubtitle: {
-    fontSize: 14,
-    color: darkTheme.textSecondary,
-    marginTop: 4,
-    textAlign: 'center',
-  },
-});
 
 export default HomeScreen;

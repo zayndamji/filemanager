@@ -9,13 +9,146 @@ import {
   RefreshControl,
   Modal,
 } from 'react-native';
-import { darkTheme } from '../theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFileContext } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
 import { FileManagerService, EncryptedFile } from '../utils/FileManagerService';
 import FileViewer from '../components/FileViewer';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { ThemeContext } from '../theme';
+
+const getStyles = (theme: typeof import('../theme').darkTheme) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.background,
+  },
+  header: {
+    padding: 20,
+    backgroundColor: theme.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+  },
+  titleContainer: {
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: theme.text,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    marginTop: 4,
+  },
+  breadcrumb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  breadcrumbLabel: {
+    fontSize: 12,
+    color: theme.textSecondary,
+  },
+  breadcrumbPath: {
+    fontSize: 12,
+    color: theme.accent,
+    fontFamily: 'Menlo',
+  },
+  upButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: theme.surface,
+    borderRadius: 4,
+  },
+  upButtonText: {
+    fontSize: 12,
+    color: theme.accent,
+    marginLeft: 4,
+  },
+  listContainer: {
+    padding: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  folderItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.surface,
+    padding: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  fileItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.surface,
+    padding: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  fileIcon: {
+    marginRight: 12,
+  },
+  fileInfo: {
+    flex: 1,
+  },
+  fileName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.text,
+    marginBottom: 4,
+  },
+  fileDetails: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    marginBottom: 2,
+  },
+  fileDate: {
+    fontSize: 12,
+    color: theme.textSecondary,
+  },
+  encryptedBadge: {
+    marginLeft: 8,
+  },
+  chevron: {
+    marginLeft: 8,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.textSecondary,
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    marginTop: 8,
+  },
+});
 
 const FileListScreen = () => {
   const { 
@@ -25,6 +158,12 @@ const FileListScreen = () => {
     setCurrentFolderPath, 
     loading 
   } = useFileContext();
+  const { derivedKey } = usePasswordContext();
+  const [selectedFile, setSelectedFile] = useState<EncryptedFile | null>(null);
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [fileData, setFileData] = useState<Uint8Array | null>(null);
+  const { theme } = React.useContext(ThemeContext);
+  const styles = getStyles(theme);
 
   // Compute subfolders and files in current folder from encryptedFiles and currentFolderPath
   const currentPathStr = '/' + currentFolderPath.join('/');
@@ -56,10 +195,6 @@ const FileListScreen = () => {
     }
   });
   const subfolders = Array.from(subfoldersSet).sort();
-  const { derivedKey } = usePasswordContext();
-  const [selectedFile, setSelectedFile] = useState<EncryptedFile | null>(null);
-  const [viewerVisible, setViewerVisible] = useState(false);
-  const [fileData, setFileData] = useState<Uint8Array | null>(null);
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -274,138 +409,5 @@ const FileListScreen = () => {
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: darkTheme.background,
-  },
-  header: {
-    padding: 20,
-    backgroundColor: darkTheme.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: darkTheme.border,
-  },
-  titleContainer: {
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: darkTheme.text,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: darkTheme.textSecondary,
-    marginTop: 4,
-  },
-  breadcrumb: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-  },
-  breadcrumbLabel: {
-    fontSize: 12,
-    color: darkTheme.textSecondary,
-  },
-  breadcrumbPath: {
-    fontSize: 12,
-    color: darkTheme.accent,
-    fontFamily: 'Menlo',
-  },
-  upButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: darkTheme.surface,
-    borderRadius: 4,
-  },
-  upButtonText: {
-    fontSize: 12,
-    color: darkTheme.accent,
-    marginLeft: 4,
-  },
-  listContainer: {
-    padding: 16,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  folderItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: darkTheme.surface,
-    padding: 16,
-    marginBottom: 8,
-    borderRadius: 12,
-    shadowColor: darkTheme.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  fileItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: darkTheme.surface,
-    padding: 16,
-    marginBottom: 8,
-    borderRadius: 12,
-    shadowColor: darkTheme.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  fileIcon: {
-    marginRight: 12,
-  },
-  fileInfo: {
-    flex: 1,
-  },
-  fileName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: darkTheme.text,
-    marginBottom: 4,
-  },
-  fileDetails: {
-    fontSize: 14,
-    color: darkTheme.textSecondary,
-    marginBottom: 2,
-  },
-  fileDate: {
-    fontSize: 12,
-    color: darkTheme.textSecondary,
-  },
-  encryptedBadge: {
-    marginLeft: 8,
-  },
-  chevron: {
-    marginLeft: 8,
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: darkTheme.textSecondary,
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: darkTheme.textSecondary,
-    marginTop: 8,
-  },
-});
 
 export default FileListScreen;

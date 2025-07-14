@@ -1,11 +1,312 @@
 import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ScrollView,
+  ActivityIndicator,
+  TextInput,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import DocumentPicker from 'react-native-document-picker';
+import { launchImageLibrary } from 'react-native-image-picker';
+import { useFileContext } from '../context/FileContext';
+import { usePasswordContext } from '../context/PasswordContext';
+import { FileManagerService } from '../utils/FileManagerService';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import RNFS from 'react-native-fs';
+import { ThemeContext } from '../theme';
 
-// FolderPathSelector component (top-level)
-const FolderPathSelector = ({ encryptedFiles, selectedPath, setSelectedPath, disabled }: {
+const getStyles = (theme: typeof import('../theme').darkTheme) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.background,
+  },
+  header: {
+    padding: 20,
+    backgroundColor: theme.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: theme.text,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    marginTop: 4,
+  },
+  content: {
+    flex: 1,
+  },
+  uploadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: theme.surface,
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 12,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  uploadingText: {
+    fontSize: 16,
+    color: theme.textSecondary,
+    marginTop: 12,
+  },
+  optionsContainer: {
+    padding: 20,
+  },
+  optionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.surface,
+    padding: 20,
+    marginBottom: 12,
+    borderRadius: 12,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  optionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+    backgroundColor: theme.surface,
+  },
+  optionContent: {
+    flex: 1,
+  },
+  optionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.text,
+    marginBottom: 4,
+  },
+  optionSubtitle: {
+    fontSize: 14,
+    color: theme.textSecondary,
+  },
+  chevron: {
+    marginLeft: 8,
+  },
+  infoContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: theme.surface,
+    padding: 16,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 12,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  infoText: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    marginLeft: 12,
+    flex: 1,
+    lineHeight: 20,
+  },
+  folderInputContainer: {
+    backgroundColor: theme.surface,
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  folderInput: {
+    fontSize: 14,
+    color: theme.text,
+    backgroundColor: theme.inputBackground,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: theme.inputBorder,
+    marginBottom: 8,
+  },
+  folderPathPreview: {
+    fontSize: 13,
+    color: theme.textSecondary,
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  folderSelectorContainer: {
+    backgroundColor: theme.surface,
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  folderSelectorLabel: {
+    color: theme.textSecondary,
+    marginBottom: 6,
+    fontWeight: '500',
+  },
+  folderChip: {
+    alignItems: 'center',
+    backgroundColor: theme.chipBackground,
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 8,
+    marginBottom: 4,
+  },
+  selectedFolderChip: {
+    backgroundColor: theme.accent,
+  },
+  folderChipText: {
+    color: theme.chipText,
+    fontSize: 13,
+    marginRight: 4,
+  },
+  selectedFolderChipText: {
+    color: theme.chipText,
+    fontWeight: '600',
+  },
+  addTagButton: {
+    marginLeft: 8,
+    backgroundColor: theme.surface,
+    borderRadius: 20,
+    padding: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.chipBackground,
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  tagChipText: {
+    color: theme.chipText,
+    fontSize: 13,
+    marginRight: 4,
+  },
+  removeTagButton: {
+    backgroundColor: theme.accent,
+    borderRadius: 10,
+    padding: 2,
+    marginLeft: 2,
+  },
+  tagsInputContainer: {
+    backgroundColor: theme.surface,
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 8,
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  tagsInputLabel: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    marginBottom: 6,
+    fontWeight: '500',
+  },
+  tagsInput: {
+    flex: 1,
+    fontSize: 14,
+    color: theme.text,
+    backgroundColor: theme.inputBackground,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: theme.inputBorder,
+  },
+  pendingFilesContainer: {
+    backgroundColor: theme.surface,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  pendingFilesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.text,
+    marginBottom: 8,
+  },
+  pendingFileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  pendingFileName: {
+    fontSize: 14,
+    color: theme.text,
+    marginLeft: 8,
+    flex: 1,
+  },
+  pendingFileType: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginLeft: 8,
+  },
+  uploadAllButton: {
+    backgroundColor: theme.accent,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  uploadAllButtonText: {
+    color: theme.chipText,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
+
+const FolderPathSelector = ({ encryptedFiles, selectedPath, setSelectedPath, disabled, styles }: {
   encryptedFiles: any[],
   selectedPath: string[],
   setSelectedPath: (path: string[]) => void,
-  disabled?: boolean
+  disabled?: boolean,
+  styles: ReturnType<typeof getStyles>
 }) => {
   const [paths, setPaths] = useState<string[][]>([]);
   useEffect(() => {
@@ -46,25 +347,6 @@ const FolderPathSelector = ({ encryptedFiles, selectedPath, setSelectedPath, dis
     </View>
   );
 };
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ScrollView,
-  ActivityIndicator,
-  TextInput,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import DocumentPicker from 'react-native-document-picker';
-import { launchImageLibrary } from 'react-native-image-picker';
-import { useFileContext } from '../context/FileContext';
-import { usePasswordContext } from '../context/PasswordContext';
-import { FileManagerService } from '../utils/FileManagerService';
-import Icon from 'react-native-vector-icons/MaterialIcons';
-import RNFS from 'react-native-fs';
-import { darkTheme } from '../theme';
 
 const UploadScreen = () => {
   const { refreshFileList, encryptedFiles } = useFileContext();
@@ -75,6 +357,8 @@ const UploadScreen = () => {
   const [tags, setTags] = useState<string[]>([]);
   const [selectedFolderPath, setSelectedFolderPath] = useState<string[]>([]);
   const [folderPathInput, setFolderPathInput] = useState('');
+  const { theme } = React.useContext(ThemeContext);
+  const styles = getStyles(theme);
 
   const handleDocumentPicker = async () => {
     try {
@@ -224,7 +508,7 @@ const UploadScreen = () => {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {uploading && (
           <View style={styles.uploadingContainer}>
-            <ActivityIndicator size="large" color="#007AFF" />
+            <ActivityIndicator size="large" color={theme.accent} />
             <Text style={styles.uploadingText}>Encrypting and uploading files...</Text>
           </View>
         )}
@@ -238,7 +522,7 @@ const UploadScreen = () => {
               disabled={uploading}
             >
               <View style={[styles.optionIcon, { backgroundColor: option.color }]}> 
-                <Icon name={option.icon} size={28} color="#fff" />
+                <Icon name={option.icon} size={28} color={theme.chipText} />
               </View>
               <View style={styles.optionContent}>
                 <Text style={styles.optionTitle}>{option.title}</Text>
@@ -280,7 +564,7 @@ const UploadScreen = () => {
             <View style={styles.tagsInputContainer}>
               <Text style={styles.tagsInputLabel}>Tags:</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Icon name="label" size={20} color="#34C759" />
+                <Icon name="label" size={20} color={theme.accentSecondary} />
                 <TextInput
                   style={styles.tagsInput}
                   value={tagInput}
@@ -307,7 +591,7 @@ const UploadScreen = () => {
                   }}
                   disabled={uploading || !tagInput.trim()}
                 >
-                  <Icon name="add" size={24} color={uploading || !tagInput.trim() ? '#ccc' : '#007AFF'} />
+                  <Icon name="add" size={24} color={uploading || !tagInput.trim() ? theme.disabled : theme.accent} />
                 </TouchableOpacity>
               </View>
               {/* Show tags as chips/list */}
@@ -320,7 +604,7 @@ const UploadScreen = () => {
                       style={styles.removeTagButton}
                       disabled={uploading}
                     >
-                      <Icon name="close" size={16} color="#fff" />
+                      <Icon name="close" size={16} color={theme.chipText} />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -330,7 +614,7 @@ const UploadScreen = () => {
               <Text style={styles.pendingFilesTitle}>Files to upload:</Text>
               {pendingFiles.map((file, idx) => (
                 <View key={file.uri + idx} style={styles.pendingFileRow}>
-                  <Icon name="insert-drive-file" size={20} color="#007AFF" />
+                  <Icon name="insert-drive-file" size={20} color={theme.accent} />
                   <Text style={styles.pendingFileName}>{file.name}</Text>
                   <Text style={styles.pendingFileType}>{file.type}</Text>
                 </View>
@@ -346,8 +630,16 @@ const UploadScreen = () => {
           </>
         )}
 
+        <FolderPathSelector
+          encryptedFiles={encryptedFiles}
+          selectedPath={selectedFolderPath}
+          setSelectedPath={setSelectedFolderPath}
+          disabled={uploading}
+          styles={styles}
+        />
+
         <View style={styles.infoContainer}>
-          <Icon name="security" size={20} color="#34C759" />
+          <Icon name="security" size={20} color={theme.accentSecondary} />
           <Text style={styles.infoText}>
             All files are automatically encrypted with AES-256 encryption before being stored. 
             Your files are secured with your password and cannot be accessed without it.
@@ -355,7 +647,7 @@ const UploadScreen = () => {
         </View>
 
         <View style={styles.infoContainer}>
-          <Icon name="info" size={20} color="#666" />
+          <Icon name="info" size={20} color={theme.textSecondary} />
           <Text style={styles.infoText}>
             Files are stored locally on your device in encrypted format. 
             Make sure to remember your password as it cannot be recovered.
@@ -365,287 +657,5 @@ const UploadScreen = () => {
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  folderInputContainer: {
-    backgroundColor: darkTheme.surface,
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 12,
-    padding: 12,
-    shadowColor: darkTheme.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  folderInput: {
-    fontSize: 14,
-    color: darkTheme.text,
-    backgroundColor: darkTheme.inputBackground,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: darkTheme.inputBorder,
-    marginBottom: 8,
-  },
-  folderPathPreview: {
-    fontSize: 13,
-    color: darkTheme.textSecondary,
-    marginTop: 2,
-    marginBottom: 2,
-  },
-  folderSelectorContainer: {
-    backgroundColor: darkTheme.surface,
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 12,
-    padding: 12,
-    shadowColor: darkTheme.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  folderSelectorLabel: {
-    color: darkTheme.textSecondary,
-    marginBottom: 6,
-    fontWeight: '500',
-  },
-  folderChip: {
-    alignItems: 'center',
-    backgroundColor: darkTheme.chipBackground,
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginRight: 8,
-    marginBottom: 4,
-  },
-  selectedFolderChip: {
-    backgroundColor: darkTheme.accent,
-  },
-  folderChipText: {
-    color: darkTheme.chipText,
-    fontSize: 13,
-    marginRight: 4,
-  },
-  selectedFolderChipText: {
-    color: darkTheme.chipText,
-    fontWeight: '600',
-  },
-  addTagButton: {
-    marginLeft: 8,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 20,
-    padding: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  tagChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#007AFF',
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  tagChipText: {
-    color: '#fff',
-    fontSize: 13,
-    marginRight: 4,
-  },
-  removeTagButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 10,
-    padding: 2,
-    marginLeft: 2,
-  },
-  tagsInputContainer: {
-    backgroundColor: darkTheme.surface,
-    marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 8,
-    borderRadius: 12,
-    padding: 12,
-    shadowColor: darkTheme.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  tagsInputLabel: {
-    fontSize: 14,
-    color: darkTheme.textSecondary,
-    marginBottom: 6,
-    fontWeight: '500',
-  },
-  tagsInput: {
-    flex: 1,
-    fontSize: 14,
-    color: darkTheme.text,
-    backgroundColor: darkTheme.inputBackground,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginLeft: 8,
-    borderWidth: 1,
-    borderColor: darkTheme.inputBorder,
-  },
-  pendingFilesContainer: {
-    backgroundColor: darkTheme.surface,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: darkTheme.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  pendingFilesTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: darkTheme.text,
-    marginBottom: 8,
-  },
-  pendingFileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  pendingFileName: {
-    fontSize: 14,
-    color: darkTheme.text,
-    marginLeft: 8,
-    flex: 1,
-  },
-  pendingFileType: {
-    fontSize: 12,
-    color: darkTheme.textSecondary,
-    marginLeft: 8,
-  },
-  uploadAllButton: {
-    backgroundColor: darkTheme.accent,
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  uploadAllButtonText: {
-    color: darkTheme.chipText,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: darkTheme.background,
-  },
-  header: {
-    padding: 20,
-    backgroundColor: darkTheme.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: darkTheme.border,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: darkTheme.text,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: darkTheme.textSecondary,
-    marginTop: 4,
-  },
-  content: {
-    flex: 1,
-  },
-  uploadingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: darkTheme.surface,
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 12,
-    shadowColor: darkTheme.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  uploadingText: {
-    fontSize: 16,
-    color: darkTheme.textSecondary,
-    marginTop: 12,
-  },
-  optionsContainer: {
-    padding: 20,
-  },
-  optionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: darkTheme.surface,
-    padding: 20,
-    marginBottom: 12,
-    borderRadius: 12,
-    shadowColor: darkTheme.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  optionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-    backgroundColor: darkTheme.surface,
-  },
-  optionContent: {
-    flex: 1,
-  },
-  optionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: darkTheme.text,
-    marginBottom: 4,
-  },
-  optionSubtitle: {
-    fontSize: 14,
-    color: darkTheme.textSecondary,
-  },
-  chevron: {
-    marginLeft: 8,
-  },
-  infoContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: darkTheme.surface,
-    padding: 16,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 12,
-    shadowColor: darkTheme.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  infoText: {
-    fontSize: 14,
-    color: darkTheme.textSecondary,
-    marginLeft: 12,
-    flex: 1,
-    lineHeight: 20,
-  },
-});
 
 export default UploadScreen;

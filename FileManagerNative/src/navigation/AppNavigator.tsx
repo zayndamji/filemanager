@@ -2,7 +2,7 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { darkTheme } from '../theme';
+import { ThemeContext } from '../theme';
 
 // Screen imports (we'll create these next)
 import HomeScreen from '../screens/HomeScreen';
@@ -16,6 +16,7 @@ const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function MainTabNavigator() {
+  const { theme } = React.useContext(ThemeContext);
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -28,11 +29,11 @@ function MainTabNavigator() {
           else if (route.name === 'Settings') iconName = 'settings';
           return <Icon name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: darkTheme.accent,
-        tabBarInactiveTintColor: darkTheme.textSecondary,
+        tabBarActiveTintColor: theme.accent,
+        tabBarInactiveTintColor: theme.textSecondary,
         tabBarStyle: {
-          backgroundColor: darkTheme.surface,
-          borderTopColor: darkTheme.border,
+          backgroundColor: theme.surface,
+          borderTopColor: theme.border,
         },
         headerShown: false,
       })}
