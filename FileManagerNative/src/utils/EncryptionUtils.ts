@@ -17,25 +17,21 @@ export class EncryptionUtils {
     return generateUUID();
   }
 
-  // encrypts data using AES-GCM with PBKDF2 key derivation
+  // encrypts data using native AES-256-CBC
   static async encryptData(data: Uint8Array, key: Uint8Array): Promise<Uint8Array> {
     const start = Date.now();
     console.log('[EncryptionUtils] encryptData: START', { dataLength: data?.length, keyLength: key?.length, timestamp: start });
-
     const result = await encryptData(data, key);
-
     const end = Date.now();
     console.log('[EncryptionUtils] encryptData: END', { resultLength: result?.length, durationMs: end - start, timestamp: end });
     return result;
   }
 
-  // decrypts data using AES-GCM with derived key
+  // decrypts data using native AES-256-CBC
   static async decryptData(data: Uint8Array, key: Uint8Array): Promise<ArrayBuffer> {
     const start = Date.now();
     console.log('[EncryptionUtils] decryptData: START', { dataLength: data?.length, keyLength: key?.length, timestamp: start });
-
     const result = await decryptData(data, key);
-
     const end = Date.now();
     console.log('[EncryptionUtils] decryptData: END', { durationMs: end - start, timestamp: end });
     return result;
