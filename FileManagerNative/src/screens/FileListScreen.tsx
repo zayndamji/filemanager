@@ -22,10 +22,39 @@ const FileListScreen = () => {
     refreshFileList, 
     currentFolderPath, 
     setCurrentFolderPath, 
-    filesInCurrentFolder, 
-    subfolders, 
     loading 
   } = useFileContext();
+
+  // Compute subfolders and files in current folder from encryptedFiles and currentFolderPath
+  const currentPathStr = '/' + currentFolderPath.join('/');
+  const normalizedCurrentPath = currentFolderPath.length === 0 ? '/' : currentPathStr;
+  // Find all subfolders in current folder
+  const subfoldersSet = new Set<string>();
+  const filesInCurrentFolder: EncryptedFile[] = [];
+  encryptedFiles.forEach(file => {
+    let folderPathArr: string[] = [];
+    const folderPathValue = file.metadata.folderPath;
+    if (Array.isArray(folderPathValue)) {
+      folderPathArr = folderPathValue;
+    } else if (typeof folderPathValue === 'string' && (folderPathValue as string).length > 0) {
+      folderPathArr = (folderPathValue as string).replace(/^\//, '').split('/');
+    }
+    const folderPathStr = '/' + folderPathArr.join('/');
+    // If file is in current folder
+    if (folderPathStr === normalizedCurrentPath) {
+      filesInCurrentFolder.push(file);
+    }
+    // If file is in a subfolder of current folder, add subfolder name
+    if (
+      folderPathArr.length > currentFolderPath.length &&
+      folderPathArr.slice(0, currentFolderPath.length).join('/') === currentFolderPath.join('/')
+    ) {
+      // Next subfolder name
+      const nextFolder = folderPathArr[currentFolderPath.length];
+      if (nextFolder) subfoldersSet.add(nextFolder);
+    }
+  });
+  const subfolders = Array.from(subfoldersSet).sort();
   const { derivedKey } = usePasswordContext();
   const [selectedFile, setSelectedFile] = useState<EncryptedFile | null>(null);
   const [viewerVisible, setViewerVisible] = useState(false);
@@ -95,9 +124,16 @@ const FileListScreen = () => {
   };
 
   const handleFileLongPress = (file: EncryptedFile) => {
+    let folderPathArr: string[] = [];
+    const folderPathValue = file.metadata.folderPath;
+    if (Array.isArray(folderPathValue)) {
+      folderPathArr = folderPathValue;
+    } else if (typeof folderPathValue === 'string' && (folderPathValue as string).length > 0) {
+      folderPathArr = (folderPathValue as string).replace(/^\//, '').split('/');
+    }
     Alert.alert(
       file.metadata.name,
-      `Size: ${formatFileSize(file.metadata.size)}\nType: ${file.metadata.type}\nFolder: /${file.metadata.folderPath.join('/')}`,
+      `Size: ${formatFileSize(file.metadata.size)}\nType: ${file.metadata.type}\nFolder: /${folderPathArr.join('/')}`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'View', onPress: () => handleFilePress(file) },

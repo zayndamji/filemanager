@@ -1,4 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+
+// FolderPathSelector component (top-level)
+const FolderPathSelector = ({ encryptedFiles, selectedPath, setSelectedPath, disabled }: {
+  encryptedFiles: any[],
+  selectedPath: string[],
+  setSelectedPath: (path: string[]) => void,
+  disabled?: boolean
+}) => {
+  const [paths, setPaths] = useState<string[][]>([]);
+  useEffect(() => {
+    // Collect all folder paths from file metadata
+    const allPaths: Set<string> = new Set();
+    encryptedFiles.forEach(file => {
+      if (Array.isArray(file.metadata.folderPath)) {
+        allPaths.add('/' + file.metadata.folderPath.join('/'));
+      } else if (typeof file.metadata.folderPath === 'string') {
+        allPaths.add(file.metadata.folderPath);
+      }
+    });
+    // Always include root
+    allPaths.add('/');
+    // Convert to array of arrays
+    setPaths(Array.from(allPaths).map(p => p === '/' ? [] : p.replace(/^\//, '').split('/')));
+  }, [encryptedFiles]);
+
+  return (
+    <View style={styles.folderSelectorContainer}>
+      <Text style={styles.folderSelectorLabel}>Upload to folder:</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
+        {paths.map((pathArr, idx) => {
+          const isSelected = JSON.stringify(pathArr) === JSON.stringify(selectedPath);
+          const display = pathArr.length === 0 ? '/' : '/' + pathArr.join('/');
+          return (
+            <TouchableOpacity
+              key={display + idx}
+              style={[styles.folderChip, isSelected && styles.selectedFolderChip]}
+              onPress={() => setSelectedPath(pathArr)}
+              disabled={disabled}
+            >
+              <Text style={[styles.folderChipText, isSelected && styles.selectedFolderChipText]}>{display}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+};
 import {
   View,
   Text,
@@ -19,12 +66,14 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import RNFS from 'react-native-fs';
 
 const UploadScreen = () => {
-  const { refreshFileList, currentFolderPath } = useFileContext();
+  const { refreshFileList, encryptedFiles } = useFileContext();
   const { password, derivedKey } = usePasswordContext();
   const [uploading, setUploading] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<Array<{ uri: string; name: string; type: string }>>([]);
   const [tagInput, setTagInput] = useState<string>('');
   const [tags, setTags] = useState<string[]>([]);
+  const [selectedFolderPath, setSelectedFolderPath] = useState<string[]>([]);
+  const [folderPathInput, setFolderPathInput] = useState('');
 
   const handleDocumentPicker = async () => {
     try {
@@ -118,7 +167,7 @@ const UploadScreen = () => {
           file.name,
           file.type,
           derivedKey,
-          currentFolderPath,
+          selectedFolderPath,
           tags
         );
       }
@@ -167,7 +216,7 @@ const UploadScreen = () => {
       <View style={styles.header}>
         <Text style={styles.title}>Upload Files</Text>
         <Text style={styles.subtitle}>
-          Files will be encrypted and saved to: /{currentFolderPath.join('/')}
+          Files will be encrypted and saved to: /{selectedFolderPath.length === 0 ? '' : selectedFolderPath.join('/')}
         </Text>
       </View>
 
@@ -201,9 +250,32 @@ const UploadScreen = () => {
           ))}
         </View>
 
-        {/* Tags input above pending files */}
+        {/* Folder path input above tags input */}
         {pendingFiles.length > 0 && (
           <>
+            <View style={styles.folderInputContainer}>
+              <Text style={styles.folderSelectorLabel}>Folder path:</Text>
+              <TextInput
+                style={styles.folderInput}
+                value={folderPathInput}
+                onChangeText={text => {
+                  // Only allow /, A-Z, a-z, 0-9
+                  const filtered = text.replace(/[^A-Za-z0-9\/]/g, '');
+                  setFolderPathInput(filtered);
+                  // Split by /, filter out empty
+                  const arr = filtered.split('/').filter(Boolean);
+                  setSelectedFolderPath(arr);
+                }}
+                placeholder="e.g. photos/2025"
+                editable={!uploading}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="done"
+              />
+              <Text style={styles.folderPathPreview}>
+                Uploading to: /{selectedFolderPath.join('/')}
+              </Text>
+            </View>
             <View style={styles.tagsInputContainer}>
               <Text style={styles.tagsInputLabel}>Tags:</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -294,6 +366,75 @@ const UploadScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  folderInputContainer: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  folderInput: {
+    fontSize: 14,
+    color: '#333',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    marginBottom: 8,
+  },
+  folderPathPreview: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  folderSelectorContainer: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  folderSelectorLabel: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 6,
+    fontWeight: '500',
+  },
+  folderChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e0e0e0',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 8,
+    marginBottom: 4,
+  },
+  selectedFolderChip: {
+    backgroundColor: '#007AFF',
+  },
+  folderChipText: {
+    color: '#333',
+    fontSize: 13,
+    marginRight: 4,
+  },
+  selectedFolderChipText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
   addTagButton: {
     marginLeft: 8,
     backgroundColor: '#f5f5f5',
