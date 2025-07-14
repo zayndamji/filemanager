@@ -1,74 +1,63 @@
+import { gcm } from '@noble/ciphers/aes';
+import { sha256 } from '@noble/hashes/sha256';
 
-import RNSimpleCrypto from 'react-native-simple-crypto';
-import { Buffer } from 'buffer';
-import 'react-native-get-random-values';
+// encryption constants
+const saltLength = 16;
+const ivLength = 12;
+const iterations = 100000; // Secure, production value
 
-const ivLength = 16; // AES-CBC uses 16 bytes IV
+const crypto = require('crypto');
 
 // generates UUID
 export const generateUUID = (): string =>
-  'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-    const r = (Math.random() * 16) | 0,
-      v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+  '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c: any) =>
+    (
+      c ^ (global.crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (parseInt(c, 10) / 4)))
+    ).toString(16)
+  );
 
-
-// encrypts data using native AES-256-CBC
+// encrypts data using AES-GCM
 export const encryptData = async (
   data: Uint8Array | ArrayBuffer,
   key: Uint8Array,
+  salt?: Uint8Array,
   iv?: Uint8Array
 ): Promise<Uint8Array> => {
   try {
-    // Generate random IV if not provided
-    let _iv: Uint8Array;
-    if (iv) {
-      _iv = iv;
-    } else {
-      _iv = crypto.getRandomValues(new Uint8Array(ivLength));
-    }
-    
+    // If salt/iv not provided, generate them
+    const _salt = salt || (() => { const s = new Uint8Array(saltLength); global.crypto.getRandomValues(s); return s; })();
+    const _iv = iv || (() => { const v = new Uint8Array(ivLength); global.crypto.getRandomValues(v); return v; })();
+    // Convert data to Uint8Array if it's ArrayBuffer
     const dataBytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
-    
-    // Use react-native-simple-crypto for AES-256-CBC encryption
-    const encryptedData = await RNSimpleCrypto.AES.encrypt(
-      dataBytes,
-      key,
-      _iv
-    );
-    
-    // Store IV + encrypted data
-    const encryptedBuffer = Buffer.concat([
-      Buffer.from(_iv),
-      Buffer.from(encryptedData)
-    ]);
-    return new Uint8Array(encryptedBuffer);
+    // Use @noble/ciphers for AES-GCM encryption
+    const cipher = gcm(key, _iv);
+    const encrypted = cipher.encrypt(dataBytes);
+    // combine salt + iv + encrypted data
+    const output = new Uint8Array(saltLength + ivLength + encrypted.byteLength);
+    output.set(_salt, 0);
+    output.set(_iv, saltLength);
+    output.set(encrypted, saltLength + ivLength);
+    return output;
   } catch (e) {
     console.error('encryptData: error', e);
     throw e;
   }
 };
 
-
-// decrypts data using native AES-256-CBC
+// decrypts data using AES-GCM
 export const decryptData = async (
   data: Uint8Array,
   key: Uint8Array
 ): Promise<ArrayBuffer> => {
   try {
-    // Extract IV and encrypted data
-    const iv = data.slice(0, ivLength);
-    const encryptedBytes = data.slice(ivLength);
-    
-    // Use react-native-simple-crypto for AES-256-CBC decryption
-    const decryptedData = await RNSimpleCrypto.AES.decrypt(
-      encryptedBytes,
-      key,
-      iv
-    );
-    
-    return Buffer.from(decryptedData).buffer;
+    // Extract salt, iv, and encrypted data exactly like web app
+    const salt = data.slice(0, saltLength);
+    const iv = data.slice(saltLength, saltLength + ivLength);
+    const encrypted = data.slice(saltLength + ivLength);
+    // Use @noble/ciphers for AES-GCM decryption
+    const cipher = gcm(key, iv);
+    const decrypted = cipher.decrypt(encrypted);
+    return decrypted.buffer.slice(decrypted.byteOffset, decrypted.byteOffset + decrypted.byteLength);
   } catch (e) {
     console.error('decryptData: error', e);
     throw e;
