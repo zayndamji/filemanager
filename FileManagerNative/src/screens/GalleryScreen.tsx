@@ -32,6 +32,8 @@ const GalleryScreen = () => {
   const [fileData, setFileData] = useState<Uint8Array | null>(null);
   const [thumbnails, setThumbnails] = useState<Map<string, string>>(new Map());
   const [maxPreviews, setMaxPreviews] = useState(18);
+  const [tagSearch, setTagSearch] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   useEffect(() => {
     const images = encryptedFiles.filter(file => {
@@ -134,6 +136,75 @@ const GalleryScreen = () => {
       <View style={styles.header}>
         <Text style={styles.title}>Gallery</Text>
         <Text style={styles.subtitle}>{imageFiles.length} encrypted images</Text>
+        {/* Tag search bar */}
+        <View style={styles.searchBarRow}>
+          <TextInput
+            style={styles.searchBarInput}
+            value={tagSearch}
+            onChangeText={setTagSearch}
+            placeholder="Search tags..."
+            editable={true}
+          />
+        </View>
+        {/* Tag selector chips */}
+        <View style={styles.tagSelectorRow}>
+          {(() => {
+            // Collect all tags from imageFiles
+            const allTags: string[] = [];
+            imageFiles.forEach(file => {
+              if (Array.isArray(file.metadata.tags)) {
+                allTags.push(...file.metadata.tags);
+              }
+            });
+            // Count tag frequency
+            const tagCounts: { [tag: string]: number } = {};
+            allTags.forEach(tag => {
+              tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+            });
+            // Show selected tags first (green, with checkmark)
+            const selectedTagChips = selectedTags.map(tag => (
+              <TouchableOpacity
+                key={tag}
+                style={styles.selectedTagChip}
+                onPress={() => {
+                  setSelectedTags(selectedTags.filter(t => t !== tag));
+                }}
+              >
+                <Text style={styles.tagChipText}>{tag}</Text>
+                <Icon name="check" size={14} color="#fff" style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
+            ));
+
+            // Filter available tags:
+            // - Not already selected
+            // - Adding this tag to selectedTags would still match at least one image
+            const possibleTags = Object.keys(tagCounts)
+              .filter(tag => {
+                if (selectedTags.includes(tag)) return false;
+                if (!tag.toLowerCase().includes(tagSearch.toLowerCase())) return false;
+                // If this tag is added, would any image match all selectedTags + this tag?
+                const tagsToTest = [...selectedTags, tag];
+                return imageFiles.some(file =>
+                  Array.isArray(file.metadata.tags) && tagsToTest.every(t => file.metadata.tags.includes(t))
+                );
+              })
+              .sort((a, b) => tagCounts[b] - tagCounts[a]);
+
+            const possibleTagChips = possibleTags.slice(0, 8).map(tag => (
+              <TouchableOpacity
+                key={tag}
+                style={styles.tagChip}
+                onPress={() => {
+                  setSelectedTags([...selectedTags, tag]);
+                }}
+              >
+                <Text style={styles.tagChipText}>{tag}</Text>
+              </TouchableOpacity>
+            ));
+
+            return [...selectedTagChips, ...possibleTagChips];
+          })()}
+        </View>
         <View style={styles.inputRow}>
           <Text style={styles.inputLabel}>Max previews:</Text>
           <TextInput
@@ -153,7 +224,15 @@ const GalleryScreen = () => {
       </View>
 
       <FlatList
-        data={imageFiles.slice(0, maxPreviews)}
+        data={
+          imageFiles
+            .filter(file =>
+              selectedTags.length === 0
+                ? true
+                : Array.isArray(file.metadata.tags) && selectedTags.every(tag => file.metadata.tags.includes(tag))
+            )
+            .slice(0, maxPreviews)
+        }
         renderItem={renderImageItem}
         keyExtractor={(item) => item.uuid}
         numColumns={3}
@@ -184,6 +263,55 @@ const GalleryScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  searchBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 8,
+    width: '100%',
+  },
+  searchBarInput: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 15,
+    color: '#333',
+    flex: 1,
+  },
+  tagSelectorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007AFF',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  selectedTagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#34C759',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  tagChipText: {
+    color: '#fff',
+    fontSize: 13,
+    marginRight: 4,
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
