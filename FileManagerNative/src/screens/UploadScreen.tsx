@@ -47,17 +47,29 @@ const UploadScreen = () => {
     launchImageLibrary(
       {
         mediaType: 'photo',
-        quality: 0.8,
+        quality: 0.5,
         includeBase64: false,
+        selectionLimit: 0,
       },
       (response) => {
-        if (response.assets && response.assets[0]) {
-          const asset = response.assets[0];
-          setPendingFiles(prev => [...prev, {
-            uri: asset.uri!,
-            name: asset.fileName || 'image.jpg',
-            type: asset.type || 'image/jpeg',
-          }]);
+        if (response.didCancel) {
+          // User cancelled image picker
+          return;
+        }
+        if (response.errorCode) {
+          Alert.alert('Error', 'Image picker error: ' + response.errorMessage);
+          return;
+        }
+        if (Array.isArray(response.assets) && response.assets.length > 0) {
+          setPendingFiles(prev => [
+            ...prev,
+            ...response.assets?.filter(asset => asset && asset.uri)
+              .map(asset => ({
+                uri: asset.uri!,
+                name: asset.fileName || 'image.jpg',
+                type: asset.type || 'image/jpeg',
+              })) ?? []
+          ]);
         }
       }
     );
