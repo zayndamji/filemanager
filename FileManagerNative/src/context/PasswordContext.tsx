@@ -5,8 +5,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface PasswordContextType {
   password: string;
+  salt: string;
   derivedKey: Uint8Array | null;
   setPassword: (password: string) => void;
+  setSalt: (salt: string) => void;
 }
 
 const PasswordContext = createContext<PasswordContextType | undefined>(undefined);
@@ -19,48 +21,49 @@ const SALT_KEY = 'filemanager_salt';
 
 export function PasswordProvider({ children }: PasswordProviderProps) {
   const [password, setPassword] = useState<string>('');
+  const [salt, setSalt] = useState<string>('');
   const [derivedKey, setDerivedKey] = useState<Uint8Array | null>(null);
-  const [salt, setSalt] = useState<Uint8Array | null>(null);
 
-  useEffect(() => {
-    if (!password) {
+  // Load salt from AsyncStorage on mount
+  React.useEffect(() => {
+    const loadSalt = async () => {
+      try {
+        const savedSalt = await AsyncStorage.getItem(SALT_KEY);
+        if (savedSalt) setSalt(savedSalt);
+      } catch (err) {
+        console.error('[PasswordContext] Could not load salt:', err);
+      }
+    };
+    loadSalt();
+  }, []);
+
+  // Persist salt when changed
+  React.useEffect(() => {
+    if (salt) {
+      AsyncStorage.setItem(SALT_KEY, salt).catch(err => {
+        console.error('[PasswordContext] Could not save salt:', err);
+      });
+    }
+  }, [salt]);
+
+  // Derive key when password or salt changes
+  React.useEffect(() => {
+    if (!password || !salt) {
       setDerivedKey(null);
       return;
     }
-    // Load or generate salt (not tied to password)
     const derive = async () => {
-      let loadedSalt: Uint8Array | null = null;
       try {
-        const saltHex = await AsyncStorage.getItem(SALT_KEY);
-        if (saltHex) {
-          loadedSalt = Uint8Array.from(Buffer.from(saltHex, 'hex'));
-        } else {
-          // Generate random salt
-          const randomSalt = await RNSimpleCrypto.utils.randomBytes(16);
-          loadedSalt = new Uint8Array(randomSalt);
-          await AsyncStorage.setItem(SALT_KEY, Buffer.from(loadedSalt).toString('hex'));
-        }
-        setSalt(loadedSalt);
-      } catch (err) {
-        console.error('[PasswordContext] Salt error:', err);
-        loadedSalt = new Uint8Array(16); // fallback to zeroed salt
-        setSalt(loadedSalt);
-      }
-      // Derive key once per password using native PBKDF2
-      const encoder = new TextEncoder();
-      const passwordBytes = encoder.encode(password);
-      console.log('[PasswordContext] Deriving key for password: [REDACTED], length:', passwordBytes.length);
-      try {
+        const encoder = new TextEncoder();
+        const saltBytes = encoder.encode(salt);
         const keyArray = await RNSimpleCrypto.PBKDF2.hash(
           password,
-          loadedSalt,
+          saltBytes,
           20000,
           32,
           'SHA256'
         );
-        // keyArray is ArrayBuffer, convert to Uint8Array
         const key = new Uint8Array(keyArray);
-        console.log('[PasswordContext] Derived key:', key && key.length);
         setDerivedKey(key);
       } catch (err) {
         console.error('[PasswordContext] PBKDF2 error:', err);
@@ -68,10 +71,10 @@ export function PasswordProvider({ children }: PasswordProviderProps) {
       }
     };
     derive();
-  }, [password]);
+  }, [password, salt]);
 
   return (
-    <PasswordContext.Provider value={{ password, derivedKey, setPassword }}>
+    <PasswordContext.Provider value={{ password, salt, derivedKey, setPassword, setSalt }}>
       {children}
     </PasswordContext.Provider>
   );

@@ -71,19 +71,29 @@ const getStyles = (theme: typeof import('../theme').darkTheme) => StyleSheet.cre
 
 const PasswordScreen = () => {
   const [inputPassword, setInputPassword] = useState('');
-  const { setPassword } = usePasswordContext();
+  const [inputSalt, setInputSalt] = useState('');
+  const { setPassword, salt, setSalt } = usePasswordContext();
   const navigation = useNavigation();
   const { theme } = React.useContext(ThemeContext);
+
+  React.useEffect(() => {
+    if (salt) setInputSalt(salt);
+  }, [salt]);
 
   const styles = getStyles(theme);
 
   const handleSubmit = () => {
-    if (inputPassword.trim()) {
-      setPassword(inputPassword);
-      navigation.navigate('Main' as never);
-    } else {
+    if (!inputPassword.trim()) {
       Alert.alert('Error', 'Please enter a password');
+      return;
     }
+    if (!inputSalt.trim()) {
+      Alert.alert('Error', 'Please enter a salt');
+      return;
+    }
+    setSalt(inputSalt.trim());
+    setPassword(inputPassword.trim());
+    navigation.navigate('Main' as never);
   };
 
   return (
@@ -102,6 +112,14 @@ const PasswordScreen = () => {
             onChangeText={setInputPassword}
             placeholder="Password"
             placeholderTextColor={theme.textSecondary}
+          />
+          <TextInput
+            style={styles.input}
+            value={inputSalt}
+            onChangeText={setInputSalt}
+            placeholder="Salt (required, can be edited)"
+            placeholderTextColor={theme.textSecondary}
+            autoCapitalize="none"
           />
           <TouchableOpacity style={styles.button} onPress={handleSubmit}>
             <Text style={styles.buttonText}>Continue</Text>
