@@ -161,8 +161,9 @@ const GalleryScreen = () => {
             allTags.forEach(tag => {
               tagCounts[tag] = (tagCounts[tag] || 0) + 1;
             });
-            // Show selected tags first (green, with checkmark)
-            const selectedTagChips = selectedTags.map(tag => (
+
+            // Selected tags row (always shown)
+            const selectedTagChips: React.ReactNode[] = selectedTags.map(tag => (
               <TouchableOpacity
                 key={tag}
                 style={styles.selectedTagChip}
@@ -190,19 +191,50 @@ const GalleryScreen = () => {
               })
               .sort((a, b) => tagCounts[b] - tagCounts[a]);
 
-            const possibleTagChips = possibleTags.slice(0, 8).map(tag => (
-              <TouchableOpacity
-                key={tag}
-                style={styles.tagChip}
-                onPress={() => {
-                  setSelectedTags([...selectedTags, tag]);
-                }}
-              >
-                <Text style={styles.tagChipText}>{tag}</Text>
-              </TouchableOpacity>
-            ));
+            // Unselected tags row (fit to one line)
+            const unselectedTagChips: React.ReactNode[] = [];
+            let totalWidth = 0;
+            const chipPadding = 20; // estimated: horizontal padding + margin
+            const charWidth = 8; // estimated average width per character
+            for (const tag of possibleTags) {
+              const tagWidth = tag.length * charWidth + chipPadding;
+              if (totalWidth + tagWidth > width) break;
+              unselectedTagChips.push(
+                <TouchableOpacity
+                  key={tag}
+                  style={styles.tagChip}
+                  onPress={() => {
+                    setSelectedTags([...selectedTags, tag]);
+                  }}
+                >
+                  <Text style={styles.tagChipText}>{tag}</Text>
+                </TouchableOpacity>
+              );
+              totalWidth += tagWidth;
+            }
 
-            return [...selectedTagChips, ...possibleTagChips];
+            // Only show selected tags row if there are selected tags
+            if (selectedTagChips.length > 0) {
+              return (
+                <>
+                  {/* Selected tags row (always first row) */}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 4 }}>
+                    {selectedTagChips}
+                  </View>
+                  {/* Unselected tags row (always second row, max one line) */}
+                  <View style={{ flexDirection: 'row', flexWrap: 'nowrap' }}>
+                    {unselectedTagChips}
+                  </View>
+                </>
+              );
+            } else {
+              // Only unselected tags row if no selected tags
+              return (
+                <View style={{ flexDirection: 'row', flexWrap: 'nowrap' }}>
+                  {unselectedTagChips}
+                </View>
+              );
+            }
           })()}
         </View>
         <View style={styles.inputRow}>
@@ -295,7 +327,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     marginRight: 8,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   selectedTagChip: {
     flexDirection: 'row',
@@ -305,7 +337,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     marginRight: 8,
-    marginBottom: 8,
+    marginBottom: 4, // match tagChip
   },
   tagChipText: {
     color: '#fff',
