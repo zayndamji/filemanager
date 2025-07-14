@@ -7,6 +7,7 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DocumentPicker from 'react-native-document-picker';
@@ -22,6 +23,8 @@ const UploadScreen = () => {
   const { password, derivedKey } = usePasswordContext();
   const [uploading, setUploading] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<Array<{ uri: string; name: string; type: string }>>([]);
+  const [tagInput, setTagInput] = useState<string>('');
+  const [tags, setTags] = useState<string[]>([]);
 
   const handleDocumentPicker = async () => {
     try {
@@ -116,11 +119,13 @@ const UploadScreen = () => {
           file.type,
           derivedKey,
           currentFolderPath,
-          []
+          tags
         );
       }
       Alert.alert('Success', `Uploaded and encrypted ${pendingFiles.length} file(s) successfully`);
       setPendingFiles([]);
+      setTags([]);
+      setTagInput('');
       await refreshFileList();
     } catch (error) {
       console.error('File upload error:', error);
@@ -196,25 +201,76 @@ const UploadScreen = () => {
           ))}
         </View>
 
-        {/* List pending files */}
+        {/* Tags input above pending files */}
         {pendingFiles.length > 0 && (
-          <View style={styles.pendingFilesContainer}>
-            <Text style={styles.pendingFilesTitle}>Files to upload:</Text>
-            {pendingFiles.map((file, idx) => (
-              <View key={file.uri + idx} style={styles.pendingFileRow}>
-                <Icon name="insert-drive-file" size={20} color="#007AFF" />
-                <Text style={styles.pendingFileName}>{file.name}</Text>
-                <Text style={styles.pendingFileType}>{file.type}</Text>
+          <>
+            <View style={styles.tagsInputContainer}>
+              <Text style={styles.tagsInputLabel}>Tags:</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Icon name="label" size={20} color="#34C759" />
+                <TextInput
+                  style={styles.tagsInput}
+                  value={tagInput}
+                  onChangeText={setTagInput}
+                  placeholder="Add a tag and press +"
+                  editable={!uploading}
+                  onSubmitEditing={() => {
+                    const newTag = tagInput.trim();
+                    if (newTag && !tags.includes(newTag)) {
+                      setTags([...tags, newTag]);
+                      setTagInput('');
+                    }
+                  }}
+                  returnKeyType="done"
+                />
+                <TouchableOpacity
+                  style={styles.addTagButton}
+                  onPress={() => {
+                    const newTag = tagInput.trim();
+                    if (newTag && !tags.includes(newTag)) {
+                      setTags([...tags, newTag]);
+                      setTagInput('');
+                    }
+                  }}
+                  disabled={uploading || !tagInput.trim()}
+                >
+                  <Icon name="add" size={24} color={uploading || !tagInput.trim() ? '#ccc' : '#007AFF'} />
+                </TouchableOpacity>
               </View>
-            ))}
-            <TouchableOpacity
-              style={styles.uploadAllButton}
-              onPress={encryptAndSaveAllFiles}
-              disabled={uploading}
-            >
-              <Text style={styles.uploadAllButtonText}>Upload & Encrypt All</Text>
-            </TouchableOpacity>
-          </View>
+              {/* Show tags as chips/list */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
+                {tags.map((tag, idx) => (
+                  <View key={tag + idx} style={styles.tagChip}>
+                    <Text style={styles.tagChipText}>{tag}</Text>
+                    <TouchableOpacity
+                      onPress={() => setTags(tags.filter((t, i) => i !== idx))}
+                      style={styles.removeTagButton}
+                      disabled={uploading}
+                    >
+                      <Icon name="close" size={16} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            </View>
+            <View style={styles.pendingFilesContainer}>
+              <Text style={styles.pendingFilesTitle}>Files to upload:</Text>
+              {pendingFiles.map((file, idx) => (
+                <View key={file.uri + idx} style={styles.pendingFileRow}>
+                  <Icon name="insert-drive-file" size={20} color="#007AFF" />
+                  <Text style={styles.pendingFileName}>{file.name}</Text>
+                  <Text style={styles.pendingFileType}>{file.type}</Text>
+                </View>
+              ))}
+              <TouchableOpacity
+                style={styles.uploadAllButton}
+                onPress={encryptAndSaveAllFiles}
+                disabled={uploading}
+              >
+                <Text style={styles.uploadAllButtonText}>Upload & Encrypt All</Text>
+              </TouchableOpacity>
+            </View>
+          </>
         )}
 
         <View style={styles.infoContainer}>
@@ -238,6 +294,68 @@ const UploadScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  addTagButton: {
+    marginLeft: 8,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 20,
+    padding: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007AFF',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  tagChipText: {
+    color: '#fff',
+    fontSize: 13,
+    marginRight: 4,
+  },
+  removeTagButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 10,
+    padding: 2,
+    marginLeft: 2,
+  },
+  tagsInputContainer: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 8,
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  tagsInputLabel: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 6,
+    fontWeight: '500',
+  },
+  tagsInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
   pendingFilesContainer: {
     backgroundColor: '#fff',
     marginHorizontal: 20,
