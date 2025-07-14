@@ -21,14 +21,18 @@ const UploadScreen = () => {
   const { refreshFileList, currentFolderPath } = useFileContext();
   const { password, derivedKey } = usePasswordContext();
   const [uploading, setUploading] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<Array<{ uri: string; name: string; type: string }>>([]);
 
   const handleDocumentPicker = async () => {
     try {
       const result = await DocumentPicker.pickSingle({
         type: [DocumentPicker.types.allFiles],
       });
-      
-      await encryptAndSaveFile(result.uri, result.name || 'unknown', result.type || 'application/octet-stream');
+      setPendingFiles(prev => [...prev, {
+        uri: result.uri,
+        name: result.name || 'unknown',
+        type: result.type || 'application/octet-stream',
+      }]);
     } catch (error) {
       if (DocumentPicker.isCancel(error)) {
         console.log('User cancelled document picker');
@@ -49,11 +53,11 @@ const UploadScreen = () => {
       (response) => {
         if (response.assets && response.assets[0]) {
           const asset = response.assets[0];
-          encryptAndSaveFile(
-            asset.uri!, 
-            asset.fileName || 'image.jpg', 
-            asset.type || 'image/jpeg'
-          );
+          setPendingFiles(prev => [...prev, {
+            uri: asset.uri!,
+            name: asset.fileName || 'image.jpg',
+            type: asset.type || 'image/jpeg',
+          }]);
         }
       }
     );
@@ -69,46 +73,46 @@ const UploadScreen = () => {
       (response) => {
         if (response.assets && response.assets[0]) {
           const asset = response.assets[0];
-          encryptAndSaveFile(
-            asset.uri!, 
-            asset.fileName || 'video.mp4', 
-            asset.type || 'video/mp4'
-          );
+          setPendingFiles(prev => [...prev, {
+            uri: asset.uri!,
+            name: asset.fileName || 'video.mp4',
+            type: asset.type || 'video/mp4',
+          }]);
         }
       }
     );
   };
 
-  const encryptAndSaveFile = async (sourceUri: string, fileName: string, mimeType: string) => {
+  const encryptAndSaveAllFiles = async () => {
     if (!derivedKey) {
       Alert.alert('Error', 'No derived key available. Please enter your password.');
       return;
     }
     setUploading(true);
     try {
-      // Read file data
-      const fileData = await RNFS.readFile(sourceUri, 'base64');
-      const uint8Array = new Uint8Array(
-        atob(fileData)
-          .split('')
-          .map(char => char.charCodeAt(0))
-      );
-
-    // Encrypt and save file
-    await FileManagerService.saveEncryptedFile(
-      uint8Array,
-      fileName, // original filename preserved in metadata
-      mimeType,
-      derivedKey,
-      currentFolderPath, // Save to current folder
-      [] // No tags for now
-    );
-      
-      Alert.alert('Success', `File "${fileName}" uploaded and encrypted successfully`);
+      for (const file of pendingFiles) {
+        // Read file data
+        const fileData = await RNFS.readFile(file.uri, 'base64');
+        const uint8Array = new Uint8Array(
+          atob(fileData)
+            .split('')
+            .map(char => char.charCodeAt(0))
+        );
+        await FileManagerService.saveEncryptedFile(
+          uint8Array,
+          file.name,
+          file.type,
+          derivedKey,
+          currentFolderPath,
+          []
+        );
+      }
+      Alert.alert('Success', `Uploaded and encrypted ${pendingFiles.length} file(s) successfully`);
+      setPendingFiles([]);
       await refreshFileList();
     } catch (error) {
       console.error('File upload error:', error);
-      Alert.alert('Error', 'Failed to upload and encrypt file');
+      Alert.alert('Error', 'Failed to upload and encrypt files');
     } finally {
       setUploading(false);
     }
@@ -154,7 +158,7 @@ const UploadScreen = () => {
         {uploading && (
           <View style={styles.uploadingContainer}>
             <ActivityIndicator size="large" color="#007AFF" />
-            <Text style={styles.uploadingText}>Encrypting and uploading file...</Text>
+            <Text style={styles.uploadingText}>Encrypting and uploading files...</Text>
           </View>
         )}
 
@@ -166,7 +170,7 @@ const UploadScreen = () => {
               onPress={option.onPress}
               disabled={uploading}
             >
-              <View style={[styles.optionIcon, { backgroundColor: option.color }]}>
+              <View style={[styles.optionIcon, { backgroundColor: option.color }]}> 
                 <Icon name={option.icon} size={28} color="#fff" />
               </View>
               <View style={styles.optionContent}>
@@ -179,6 +183,27 @@ const UploadScreen = () => {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* List pending files */}
+        {pendingFiles.length > 0 && (
+          <View style={styles.pendingFilesContainer}>
+            <Text style={styles.pendingFilesTitle}>Files to upload:</Text>
+            {pendingFiles.map((file, idx) => (
+              <View key={file.uri + idx} style={styles.pendingFileRow}>
+                <Icon name="insert-drive-file" size={20} color="#007AFF" />
+                <Text style={styles.pendingFileName}>{file.name}</Text>
+                <Text style={styles.pendingFileType}>{file.type}</Text>
+              </View>
+            ))}
+            <TouchableOpacity
+              style={styles.uploadAllButton}
+              onPress={encryptAndSaveAllFiles}
+              disabled={uploading}
+            >
+              <Text style={styles.uploadAllButtonText}>Upload & Encrypt All</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.infoContainer}>
           <Icon name="security" size={20} color="#34C759" />
@@ -201,6 +226,52 @@ const UploadScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  pendingFilesContainer: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  pendingFilesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  pendingFileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  pendingFileName: {
+    fontSize: 14,
+    color: '#333',
+    marginLeft: 8,
+    flex: 1,
+  },
+  pendingFileType: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 8,
+  },
+  uploadAllButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  uploadAllButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
