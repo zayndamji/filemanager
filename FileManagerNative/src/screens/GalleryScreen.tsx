@@ -21,6 +21,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const { width } = Dimensions.get('window');
 const itemSize = (width - 48) / 3; // 3 columns with spacing
+const tallItemHeight = itemSize * 1.5; // Make images tall (1.5x aspect ratio)
 
 const GalleryScreen = () => {
   const { encryptedFiles, refreshFileList, loading } = useFileContext();
@@ -61,7 +62,7 @@ const GalleryScreen = () => {
           newThumbnails.set(image.uuid, dataUri);
         }
         const thumbEnd = Date.now();
-        console.log('[GalleryScreen] Loaded thumbnail for', image.metadata.name, { uuid: image.uuid, durationMs: thumbEnd - thumbStart, timestamp: thumbEnd });
+        console.log('[GalleryScreen] Loaded thumbnail for', { uuid: image.uuid, durationMs: thumbEnd - thumbStart, timestamp: thumbEnd });
       } catch (error) {
         console.warn('[GalleryScreen] Failed to load thumbnail for', image.metadata.name, error);
       }
@@ -116,9 +117,6 @@ const GalleryScreen = () => {
             <Icon name="lock" size={12} color="#fff" />
           </View>
         </View>
-        <Text style={styles.imageName} numberOfLines={1}>
-          {item.metadata.name}
-        </Text>
       </TouchableOpacity>
     );
   };
@@ -224,7 +222,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: itemSize,
-    height: itemSize,
+    height: tallItemHeight,
     borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: '#f0f0f0',
@@ -270,12 +268,6 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     marginTop: 4,
     fontWeight: '600',
-  },
-  imageName: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 8,
-    textAlign: 'center',
   },
   emptyState: {
     alignItems: 'center',

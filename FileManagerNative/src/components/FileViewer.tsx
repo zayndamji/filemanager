@@ -98,7 +98,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
 
   // log when metadata changes
   React.useEffect(() => {
-    console.log('[FileViewer] metadata changed:', metadata);
+    console.log('[FileViewer] metadata changed:', { uuid: metadata?.uuid });
   }, [metadata]);
 
   const insets = useSafeAreaInsets();

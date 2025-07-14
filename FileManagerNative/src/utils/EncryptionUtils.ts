@@ -57,7 +57,7 @@ export class EncryptionUtils {
   }> {
     const uuid = this.generateUUID();
     const start = Date.now();
-    console.log('[EncryptionUtils] encryptFile: START', { uuid, fileName, mimeType, timestamp: start });
+    console.log('[EncryptionUtils] encryptFile: START', { uuid, timestamp: start });
     
     // Create metadata
     const metadata: FileMetadata = {

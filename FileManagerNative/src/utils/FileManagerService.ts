@@ -78,7 +78,7 @@ export class FileManagerService {
     }
 
     const end = Date.now();
-    console.log('[FileManagerService] saveEncryptedFile: END', { uuid, durationMs: end - start, timestamp: end });
+    console.log('[FileManagerService] saveEncryptedFile: END', { uuid, filePath, metadataPath, previewPath, isEncrypted: true, durationMs: end - start, timestamp: end });
 
     // Decrypt metadata for return value (do not parse encrypted buffer)
     let metadata: FileMetadata = {} as FileMetadata;
@@ -125,7 +125,7 @@ export class FileManagerService {
       key
     );
     const end = Date.now();
-    console.log('[FileManagerService] loadEncryptedFile: END', { uuid, durationMs: end - start, timestamp: end });
+    console.log('[FileManagerService] loadEncryptedFile: END', { uuid, filePath, metadataPath, durationMs: end - start, timestamp: end });
     return result;
   }
 
@@ -213,7 +213,7 @@ export class FileManagerService {
           console.warn('Failed to load metadata for', uuid, error);
         }
       }
-      const end = Date.now();
+    const end = Date.now();
     console.log('[FileManagerService] listEncryptedFiles: END', { count: encryptedFiles.length, durationMs: end - start, timestamp: end });
       return encryptedFiles.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
     } catch (error) {
@@ -299,7 +299,7 @@ export class FileManagerService {
       const encryptedPreview = Buffer.from(previewBase64, 'base64');
       const previewBuffer = await EncryptionUtils.decryptData(new Uint8Array(encryptedPreview), key);
       const end = Date.now();
-      console.log('[FileManagerService] getFilePreview: END', { uuid, durationMs: end - start, timestamp: end });
+      console.log('[FileManagerService] getFilePreview: END', { uuid, previewPath, durationMs: end - start, timestamp: end });
       return new Uint8Array(previewBuffer);
     } catch (error) {
       console.error('Failed to load preview:', error);
