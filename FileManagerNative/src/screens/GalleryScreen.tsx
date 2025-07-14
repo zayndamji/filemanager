@@ -282,6 +282,7 @@ const GalleryScreen = () => {
             fileData={fileData}
             metadata={selectedFile.metadata}
             onClose={() => setViewerVisible(false)}
+            onMetadataUpdated={refreshFileList}
           />
         )}
       </Modal>

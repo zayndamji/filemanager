@@ -22,6 +22,33 @@ export interface EncryptedFile {
 }
 
 export class FileManagerService {
+  /**
+   * Updates the metadata for a file (re-encrypts and saves metadata.enc)
+   */
+  static async updateFileMetadata(uuid: string, newMetadata: Partial<FileMetadata>, key: Uint8Array): Promise<void> {
+    this.checkKey(key, 'updateFileMetadata');
+    // Load current metadata
+    const metadataPath = this.getFilePath(uuid, 'metadata');
+    let metadata: FileMetadata;
+    try {
+      metadata = await this.loadFileMetadata(uuid, key);
+    } catch (e) {
+      throw new Error('Failed to load current metadata for update');
+    }
+    // Merge new fields
+    const updated: FileMetadata = {
+      ...metadata,
+      ...newMetadata,
+      uuid,
+      encryptedAt: new Date().toISOString(),
+    };
+    // Encrypt and save
+    const metadataString = JSON.stringify(updated);
+    const metadataBuffer = new TextEncoder().encode(metadataString);
+    const encryptedMetadata = await EncryptionUtils.encryptData(metadataBuffer, key);
+    const metadataBase64 = Buffer.from(encryptedMetadata).toString('base64');
+    await RNFS.writeFile(metadataPath, metadataBase64, 'base64');
+  }
   private static documentsPath = RNFS.DocumentDirectoryPath;
 
   // gets the file path for a given UUID and type

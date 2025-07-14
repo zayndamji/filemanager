@@ -30,7 +30,7 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
 }
 // react native and icon imports
 import { Component, ErrorInfo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
@@ -40,7 +40,7 @@ import TextFile from './FileTypes/TextFile';
 import AudioFile from './FileTypes/AudioFile';
 import PDFFile from './FileTypes/PDFFile';
 import VideoFile from './FileTypes/VideoFile';
-import { FileMetadata } from '../utils/FileManagerService';
+import { FileMetadata, FileManagerService } from '../utils/FileManagerService';
 
 // props for file viewer
 interface FileViewerProps {
@@ -50,6 +50,7 @@ interface FileViewerProps {
   onDownload?: () => void; // callback for download
   onDelete?: () => void; // callback for delete
   showDetails?: boolean; // whether to show file details
+  onMetadataUpdated?: () => void; // callback after metadata is updated
 }
 
 // catches errors in file viewer only
@@ -90,20 +91,16 @@ const FileViewer: React.FC<FileViewerProps> = ({
   onDownload,
   onDelete,
   showDetails = true,
+  onMetadataUpdated,
 }) => {
-  // log when mounted
+  // ...existing hooks and logic...
   React.useEffect(() => {
     console.log('[FileViewer] mounted');
   }, []);
-
-  // log when metadata changes
   React.useEffect(() => {
     console.log('[FileViewer] metadata changed:', { uuid: metadata?.uuid });
   }, [metadata]);
-
   const insets = useSafeAreaInsets();
-
-  // format file size for display
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -111,87 +108,99 @@ const FileViewer: React.FC<FileViewerProps> = ({
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
-
-  // handle download button click
   const handleDownload = async () => {
     if (onDownload) {
       onDownload();
     }
   };
-
-  // render file content based on mime type
   const renderFileContent = () => {
     const mimeType = metadata.type;
     let rendered;
-
-    // show image file
     if (mimeType.startsWith('image/')) {
-      console.log('[FileViewer] rendering ImageFile');
       const isPreview = !!(fileData && fileData.byteLength < 100 * 1024);
       rendered = <ImageFile fileData={fileData} mimeType={mimeType} isPreview={isPreview} />;
-    }
-    // show text file
-    else if (mimeType.startsWith('text/') || mimeType === 'application/json') {
-      console.log('[FileViewer] rendering TextFile');
+    } else if (mimeType.startsWith('text/') || mimeType === 'application/json') {
       rendered = <TextFile fileData={fileData} />;
-    }
-    // show audio file
-    else if (mimeType.startsWith('audio/')) {
-      console.log('[FileViewer] rendering AudioFile');
+    } else if (mimeType.startsWith('audio/')) {
       rendered = <AudioFile fileData={fileData} mimeType={mimeType} fileName={metadata.name} />;
-    }
-    // show video file
-    else if (mimeType.startsWith('video/')) {
-      console.log('[FileViewer] rendering VideoFile');
+    } else if (mimeType.startsWith('video/')) {
       rendered = <VideoFile fileData={fileData} mimeType={mimeType} fileName={metadata.name} />;
-    }
-    // show pdf file
-    else if (mimeType === 'application/pdf') {
-      console.log('[FileViewer] rendering PDFFile');
+    } else if (mimeType === 'application/pdf') {
       rendered = <PDFFile fileData={fileData} mimeType={mimeType} fileName={metadata.name} />;
-    }
-    // unsupported file type
-    else {
-      console.log('[FileViewer] rendering unsupported file type');
+    } else {
       rendered = (
         <View style={styles.unsupportedContainer}>
           <Icon name="insert-drive-file" size={64} color="#ccc" />
-          <Text style={styles.unsupportedText}>
-            unsupported file type: {mimeType}
-          </Text>
-          <Text style={styles.unsupportedSubtext}>
-            <Text>{formatFileSize(metadata.size)}</Text>
-          </Text>
+          <Text style={styles.unsupportedText}>unsupported file type: {mimeType}</Text>
+          <Text style={styles.unsupportedSubtext}><Text>{formatFileSize(metadata.size)}</Text></Text>
         </View>
       );
     }
-
-    // fallback: wrap primitive in text if needed
     if (typeof rendered === 'string' || typeof rendered === 'number') {
-      console.error('[FileViewer] renderFileContent returned primitive!', { rendered });
       return <Text style={{ color: 'red', padding: 16 }}>file content could not be rendered (primitive returned)</Text>;
     }
-
     return rendered;
   };
-
-  // handle delete button click
   const handleDelete = () => {
     Alert.alert(
       'Delete File',
       `Are you sure you want to delete "${metadata.name}"?`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive', 
-          onPress: onDelete 
-        },
+        { text: 'Delete', style: 'destructive', onPress: onDelete },
       ]
     );
   };
 
-  // render main file viewer layout
+  // --- Edit Metadata State ---
+  const [editing, setEditing] = React.useState(false);
+  const [editName, setEditName] = React.useState(metadata.name);
+  const [editFolderPathInput, setEditFolderPathInput] = React.useState(metadata.folderPath.join('/'));
+  const [editFolderPath, setEditFolderPath] = React.useState<string[]>(metadata.folderPath);
+  const [editTagInput, setEditTagInput] = React.useState('');
+  const [editTags, setEditTags] = React.useState<string[]>(metadata.tags || []);
+
+  // Reset edit fields when opening edit mode or metadata changes
+  React.useEffect(() => {
+    if (editing) {
+      setEditName(metadata.name);
+      setEditFolderPathInput(metadata.folderPath.join('/'));
+      setEditFolderPath(metadata.folderPath);
+      setEditTags(metadata.tags || []);
+      setEditTagInput('');
+    }
+  }, [editing, metadata]);
+
+  // --- Save Metadata Handler ---
+  const { derivedKey } = require('../context/PasswordContext').usePasswordContext();
+  const handleSaveMetadata = async () => {
+    try {
+      await FileManagerService.updateFileMetadata(
+        metadata.uuid,
+        {
+          name: editName,
+          folderPath: editFolderPath,
+          tags: editTags,
+        },
+        derivedKey
+      );
+      console.log('[FileViewer] Metadata updated:', {
+        uuid: metadata.uuid,
+        name: editName,
+        folderPath: editFolderPath,
+        tags: editTags,
+      });
+      setEditing(false);
+      if (onMetadataUpdated) {
+        onMetadataUpdated();
+      }
+    } catch (error) {
+      console.error('[FileViewer] Failed to update metadata:', error);
+      Alert.alert('Error', 'Failed to update file metadata');
+    }
+  };
+
+  // --- Main Render ---
   return (
     <GlobalErrorBoundary>
       <FileViewerErrorBoundary>
@@ -222,55 +231,149 @@ const FileViewer: React.FC<FileViewerProps> = ({
           <ScrollView style={styles.content} contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
             {renderFileContent()}
 
-            {!!showDetails ? (
+            {!!showDetails && !editing && (
               <View style={styles.detailsContainer}>
                 <Text style={styles.detailsTitle}>File Details</Text>
-
-                {/* file details rows */}
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Name:</Text>
                   <Text style={styles.detailValue}>{metadata.name}</Text>
                 </View>
-
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Size:</Text>
                   <Text style={styles.detailValue}>{formatFileSize(metadata.size)}</Text>
                 </View>
-
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Type:</Text>
                   <Text style={styles.detailValue}>{metadata.type}</Text>
                 </View>
-
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>UUID:</Text>
                   <Text style={styles.detailValue}>{metadata.uuid}</Text>
                 </View>
-
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Folder:</Text>
-                  <Text style={styles.detailValue}>
-                    /{metadata.folderPath.join('/') || ''}
-                  </Text>
+                  <Text style={styles.detailValue}>/{metadata.folderPath.join('/') || ''}</Text>
                 </View>
-
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Encrypted:</Text>
-                  <Text style={styles.detailValue}>
-                    {new Date(metadata.encryptedAt).toLocaleDateString()}
-                  </Text>
+                  <Text style={styles.detailValue}>{new Date(metadata.encryptedAt).toLocaleDateString()}</Text>
                 </View>
-
                 {!!(metadata.tags && metadata.tags.length > 0) ? (
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Tags:</Text>
-                    <Text style={styles.detailValue}>
-                      {metadata.tags.join(', ')}
-                    </Text>
+                    <Text style={styles.detailValue}>{metadata.tags.join(', ')}</Text>
                   </View>
                 ) : null}
+                {/* Edit Metadata Button */}
+                <Pressable
+                  style={{ marginTop: 20, padding: 12, backgroundColor: '#007AFF', borderRadius: 8, alignItems: 'center' }}
+                  onPress={() => setEditing(true)}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Edit Metadata</Text>
+                </Pressable>
               </View>
-            ) : null}
+            )}
+
+            {/* Edit Metadata Form */}
+            {editing && (
+              <View style={styles.detailsContainer}>
+                <Text style={styles.detailsTitle}>Edit Metadata</Text>
+                {/* Name input */}
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={{ fontSize: 14, color: '#666', marginBottom: 4 }}>Name:</Text>
+                  <TextInput
+                    style={{ fontSize: 14, color: '#333', backgroundColor: '#f5f5f5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#e0e0e0' }}
+                    value={editName}
+                    onChangeText={setEditName}
+                    editable={true}
+                  />
+                </View>
+                {/* Folder path input */}
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={{ fontSize: 14, color: '#666', marginBottom: 4 }}>Folder path:</Text>
+                  <TextInput
+                    style={{ fontSize: 14, color: '#333', backgroundColor: '#f5f5f5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#e0e0e0' }}
+                    value={editFolderPathInput}
+                    onChangeText={text => {
+                      const filtered = text.replace(/[^A-Za-z0-9\/]/g, '');
+                      setEditFolderPathInput(filtered);
+                      const arr = filtered.split('/').filter(Boolean);
+                      setEditFolderPath(arr);
+                    }}
+                    placeholder="e.g. photos/2025"
+                    editable={true}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Text style={{ fontSize: 13, color: '#666', marginTop: 2, marginBottom: 2 }}>
+                    /{editFolderPath.join('/')}
+                  </Text>
+                </View>
+                {/* Tags input */}
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={{ fontSize: 14, color: '#666', marginBottom: 4 }}>Tags:</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Icon name="label" size={20} color="#34C759" />
+                    <TextInput
+                      style={{ flex: 1, fontSize: 14, color: '#333', backgroundColor: '#f5f5f5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginLeft: 8, borderWidth: 1, borderColor: '#e0e0e0' }}
+                      value={editTagInput}
+                      onChangeText={setEditTagInput}
+                      placeholder="Add a tag and press +"
+                      editable={true}
+                      onSubmitEditing={() => {
+                        const newTag = editTagInput.trim();
+                        if (newTag && !editTags.includes(newTag)) {
+                          setEditTags([...editTags, newTag]);
+                          setEditTagInput('');
+                        }
+                      }}
+                      returnKeyType="done"
+                    />
+                    <Pressable
+                      style={{ marginLeft: 8, backgroundColor: '#f5f5f5', borderRadius: 20, padding: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#e0e0e0' }}
+                      onPress={() => {
+                        const newTag = editTagInput.trim();
+                        if (newTag && !editTags.includes(newTag)) {
+                          setEditTags([...editTags, newTag]);
+                          setEditTagInput('');
+                        }
+                      }}
+                    >
+                      <Icon name="add" size={24} color={editTagInput.trim() ? '#007AFF' : '#ccc'} />
+                    </Pressable>
+                  </View>
+                  {/* Show tags as chips/list */}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
+                    {editTags.map((tag, idx) => (
+                      <View key={tag + idx} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#007AFF', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 4, marginRight: 8, marginBottom: 8 }}>
+                        <Text style={{ color: '#fff', fontSize: 13, marginRight: 4 }}>{tag}</Text>
+                        <Pressable
+                          onPress={() => setEditTags(editTags.filter((t, i) => i !== idx))}
+                          style={{ backgroundColor: '#007AFF', borderRadius: 10, padding: 2, marginLeft: 2 }}
+                        >
+                          <Icon name="close" size={16} color="#fff" />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+                {/* Save/Cancel buttons */}
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
+                  <Pressable
+                    style={{ backgroundColor: '#eee', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 16, marginRight: 8 }}
+                    onPress={() => setEditing(false)}
+                  >
+                    <Text style={{ color: '#666', fontWeight: '600', fontSize: 15 }}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={{ backgroundColor: '#007AFF', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 16 }}
+                    onPress={handleSaveMetadata}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>Save</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
           </ScrollView>
         </View>
       </FileViewerErrorBoundary>

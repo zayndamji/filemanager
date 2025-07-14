@@ -266,6 +266,7 @@ const FileListScreen = () => {
               setViewerVisible(false);
               handleDeleteFile(selectedFile);
             }}
+            onMetadataUpdated={refreshFileList}
           />
         )}
       </Modal>
