@@ -93,13 +93,17 @@ const FileViewer: React.FC<FileViewerProps> = ({
   showDetails = true,
   onMetadataUpdated,
 }) => {
-  // ...existing hooks and logic...
+  // Local state for displayed metadata
+  const [viewerMetadata, setViewerMetadata] = React.useState<FileMetadata>(metadata);
+  React.useEffect(() => {
+    setViewerMetadata(metadata);
+  }, [metadata]);
   React.useEffect(() => {
     console.log('[FileViewer] mounted');
   }, []);
   React.useEffect(() => {
-    console.log('[FileViewer] metadata changed:', { uuid: metadata?.uuid });
-  }, [metadata]);
+    console.log('[FileViewer] metadata changed:', { uuid: viewerMetadata?.uuid });
+  }, [viewerMetadata]);
   const insets = useSafeAreaInsets();
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
@@ -154,22 +158,22 @@ const FileViewer: React.FC<FileViewerProps> = ({
 
   // --- Edit Metadata State ---
   const [editing, setEditing] = React.useState(false);
-  const [editName, setEditName] = React.useState(metadata.name);
-  const [editFolderPathInput, setEditFolderPathInput] = React.useState(metadata.folderPath.join('/'));
-  const [editFolderPath, setEditFolderPath] = React.useState<string[]>(metadata.folderPath);
+  const [editName, setEditName] = React.useState(viewerMetadata.name);
+  const [editFolderPathInput, setEditFolderPathInput] = React.useState(viewerMetadata.folderPath.join('/'));
+  const [editFolderPath, setEditFolderPath] = React.useState<string[]>(viewerMetadata.folderPath);
   const [editTagInput, setEditTagInput] = React.useState('');
-  const [editTags, setEditTags] = React.useState<string[]>(metadata.tags || []);
+  const [editTags, setEditTags] = React.useState<string[]>(viewerMetadata.tags || []);
 
   // Reset edit fields when opening edit mode or metadata changes
   React.useEffect(() => {
     if (editing) {
-      setEditName(metadata.name);
-      setEditFolderPathInput(metadata.folderPath.join('/'));
-      setEditFolderPath(metadata.folderPath);
-      setEditTags(metadata.tags || []);
+      setEditName(viewerMetadata.name);
+      setEditFolderPathInput(viewerMetadata.folderPath.join('/'));
+      setEditFolderPath(viewerMetadata.folderPath);
+      setEditTags(viewerMetadata.tags || []);
       setEditTagInput('');
     }
-  }, [editing, metadata]);
+  }, [editing, viewerMetadata]);
 
   // --- Save Metadata Handler ---
   const { derivedKey } = require('../context/PasswordContext').usePasswordContext();
@@ -184,12 +188,13 @@ const FileViewer: React.FC<FileViewerProps> = ({
         },
         derivedKey
       );
-      console.log('[FileViewer] Metadata updated:', {
-        uuid: metadata.uuid,
-        name: editName,
-        folderPath: editFolderPath,
-        tags: editTags,
-      });
+      // Reload updated metadata from disk
+      const updatedMetadata = await FileManagerService.loadFileMetadata(metadata.uuid, derivedKey);
+      setViewerMetadata(updatedMetadata);
+      setEditName(updatedMetadata.name);
+      setEditFolderPathInput(updatedMetadata.folderPath.join('/'));
+      setEditFolderPath(updatedMetadata.folderPath);
+      setEditTags(updatedMetadata.tags || []);
       setEditing(false);
       if (onMetadataUpdated) {
         onMetadataUpdated();
@@ -211,7 +216,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
               <Icon name="close" size={24} color="#666" />
             </Pressable>
 
-            <Text style={styles.fileName} numberOfLines={1} ellipsizeMode="middle">{metadata.name}</Text>
+            <Text style={styles.fileName} numberOfLines={1} ellipsizeMode="middle">{viewerMetadata.name}</Text>
 
             <View style={styles.headerActions}>
               {onDelete && (
@@ -236,32 +241,32 @@ const FileViewer: React.FC<FileViewerProps> = ({
                 <Text style={styles.detailsTitle}>File Details</Text>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Name:</Text>
-                  <Text style={styles.detailValue}>{metadata.name}</Text>
+                  <Text style={styles.detailValue}>{viewerMetadata.name}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Size:</Text>
-                  <Text style={styles.detailValue}>{formatFileSize(metadata.size)}</Text>
+                  <Text style={styles.detailValue}>{formatFileSize(viewerMetadata.size)}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Type:</Text>
-                  <Text style={styles.detailValue}>{metadata.type}</Text>
+                  <Text style={styles.detailValue}>{viewerMetadata.type}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>UUID:</Text>
-                  <Text style={styles.detailValue}>{metadata.uuid}</Text>
+                  <Text style={styles.detailValue}>{viewerMetadata.uuid}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Folder:</Text>
-                  <Text style={styles.detailValue}>/{metadata.folderPath.join('/') || ''}</Text>
+                  <Text style={styles.detailValue}>/{viewerMetadata.folderPath.join('/') || ''}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Encrypted:</Text>
-                  <Text style={styles.detailValue}>{new Date(metadata.encryptedAt).toLocaleDateString()}</Text>
+                  <Text style={styles.detailValue}>{new Date(viewerMetadata.encryptedAt).toLocaleDateString()}</Text>
                 </View>
-                {!!(metadata.tags && metadata.tags.length > 0) ? (
+                {!!(viewerMetadata.tags && viewerMetadata.tags.length > 0) ? (
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Tags:</Text>
-                    <Text style={styles.detailValue}>{metadata.tags.join(', ')}</Text>
+                    <Text style={styles.detailValue}>{viewerMetadata.tags.join(', ')}</Text>
                   </View>
                 ) : null}
                 {/* Edit Metadata Button */}
