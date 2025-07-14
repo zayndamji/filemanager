@@ -113,11 +113,6 @@ const GalleryScreen = () => {
               <Text style={styles.loadingText}>Loading...</Text>
             </View>
           )}
-          
-          {/* Encrypted badge */}
-          <View style={styles.encryptedBadge}>
-            <Icon name="lock" size={12} color="#fff" />
-          </View>
         </View>
       </TouchableOpacity>
     );

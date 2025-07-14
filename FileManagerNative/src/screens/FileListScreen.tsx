@@ -171,9 +171,6 @@ const FileListScreen = () => {
           {formatFileSize(item.metadata.size)} • {item.metadata.type.split('/')[0].toUpperCase()}
         </Text>
       </View>
-      <View style={styles.encryptedBadge}>
-        <Icon name="lock" size={16} color="#FF3B30" />
-      </View>
     </TouchableOpacity>
   );
 
