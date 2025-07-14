@@ -134,9 +134,6 @@ const FileListScreen = () => {
         <Text style={styles.fileDetails}>
           {formatFileSize(item.metadata.size)} • {item.metadata.type.split('/')[0].toUpperCase()}
         </Text>
-        <Text style={styles.fileDate}>
-          {new Date(item.metadata.encryptedAt).toLocaleDateString()}
-        </Text>
       </View>
       <View style={styles.encryptedBadge}>
         <Icon name="lock" size={16} color="#FF3B30" />
