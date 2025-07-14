@@ -1,12 +1,11 @@
 import { gcm } from '@noble/ciphers/aes';
 import { sha256 } from '@noble/hashes/sha256';
+import 'react-native-get-random-values';
 
 // encryption constants
 const saltLength = 16;
 const ivLength = 12;
 const iterations = 100000; // Secure, production value
-
-const crypto = require('crypto');
 
 // generates UUID
 export const generateUUID = (): string =>
