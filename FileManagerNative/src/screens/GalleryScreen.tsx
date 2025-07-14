@@ -18,6 +18,7 @@ import { usePasswordContext } from '../context/PasswordContext';
 import { FileManagerService, EncryptedFile } from '../utils/FileManagerService';
 import FileViewer from '../components/FileViewer';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { darkTheme } from '../theme';
 
 const { width } = Dimensions.get('window');
 const itemSize = (width - 48) / 3; // 3 columns with spacing
@@ -299,14 +300,14 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   searchBarInput: {
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.inputBackground,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: darkTheme.inputBorder,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     fontSize: 15,
-    color: '#333',
+    color: darkTheme.text,
     flex: 1,
   },
   tagSelectorRow: {
@@ -318,7 +319,7 @@ const styles = StyleSheet.create({
   tagChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#007AFF',
+    backgroundColor: darkTheme.chipBackground,
     borderRadius: 16,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -328,7 +329,7 @@ const styles = StyleSheet.create({
   selectedTagChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#34C759',
+    backgroundColor: darkTheme.chipBackground,
     borderRadius: 16,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -336,28 +337,28 @@ const styles = StyleSheet.create({
     marginBottom: 4, // match tagChip
   },
   tagChipText: {
-    color: '#fff',
+    color: darkTheme.chipText,
     fontSize: 13,
     marginRight: 4,
   },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: darkTheme.background,
   },
   header: {
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: darkTheme.border,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: darkTheme.text,
   },
   subtitle: {
     fontSize: 14,
-    color: '#666',
+    color: darkTheme.textSecondary,
     marginTop: 4,
   },
   listContainer: {
@@ -381,7 +382,7 @@ const styles = StyleSheet.create({
     height: tallItemHeight,
     borderRadius: 8,
     overflow: 'hidden',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: darkTheme.surface,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -392,36 +393,36 @@ const styles = StyleSheet.create({
   loadingContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f8f8',
+    backgroundColor: darkTheme.surface,
     width: '100%',
     height: '100%',
   },
   loadingText: {
     fontSize: 10,
-    color: '#999',
+    color: darkTheme.textSecondary,
     marginTop: 4,
   },
   encryptedBadge: {
     position: 'absolute',
     top: 4,
     right: 4,
-    backgroundColor: 'rgba(255, 59, 48, 0.8)',
+    backgroundColor: darkTheme.error,
     borderRadius: 8,
     padding: 2,
   },
   encryptedOverlay: {
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f8f8',
+    backgroundColor: darkTheme.surface,
     width: '100%',
     height: '100%',
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: darkTheme.border,
     borderRadius: 8,
   },
   encryptedText: {
     fontSize: 12,
-    color: '#FF3B30',
+    color: darkTheme.error,
     marginTop: 4,
     fontWeight: '600',
   },
@@ -433,12 +434,12 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#666',
+    color: darkTheme.textSecondary,
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#999',
+    color: darkTheme.textSecondary,
     marginTop: 8,
   },
   inputRow: {
@@ -448,19 +449,19 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 14,
-    color: '#666',
+    color: darkTheme.textSecondary,
     marginRight: 8,
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.inputBackground,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: darkTheme.inputBorder,
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
     width: 60,
     fontSize: 14,
-    color: '#333',
+    color: darkTheme.text,
   },
 });
 

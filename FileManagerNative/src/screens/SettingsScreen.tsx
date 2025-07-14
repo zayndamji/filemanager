@@ -5,6 +5,7 @@ import { usePasswordContext } from '../context/PasswordContext';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { FileManagerService } from '../utils/FileManagerService';
+import { darkTheme } from '../theme';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 type RootStackParamList = {
@@ -62,10 +63,10 @@ const SettingsScreen = () => {
       </TouchableOpacity>
       {deleting && <ActivityIndicator size="large" color="#ff3b30" style={{ marginTop: 16 }} />}
       <TouchableOpacity
-        style={[styles.deleteButton, { backgroundColor: '#007AFF', marginTop: 24 }]}
+        style={[styles.deleteButton, { backgroundColor: darkTheme.accent, marginTop: 24 }]}
         onPress={handleLogout}
       >
-        <Icon name="logout" size={24} color="#fff" />
+        <Icon name="logout" size={24} color={darkTheme.chipText} />
         <Text style={styles.deleteButtonText}>Log Out</Text>
       </TouchableOpacity>
     </View>
@@ -77,27 +78,29 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.background,
     padding: 24,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
+    color: darkTheme.text,
     marginBottom: 32,
   },
   deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ff3b30',
+    backgroundColor: darkTheme.error,
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 8,
   },
   deleteButtonDisabled: {
+    backgroundColor: darkTheme.disabled,
     opacity: 0.6,
   },
   deleteButtonText: {
-    color: '#fff',
+    color: darkTheme.chipText,
     fontSize: 18,
     fontWeight: 'bold',
     marginLeft: 12,

@@ -31,6 +31,7 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
 // react native and icon imports
 import { Component, ErrorInfo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, TextInput } from 'react-native';
+import { darkTheme } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
@@ -390,109 +391,94 @@ const FileViewer: React.FC<FileViewerProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.background,
   },
-
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: darkTheme.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    // height and paddingTop set dynamically
+    borderBottomColor: darkTheme.border,
   },
-
   closeButton: {
     marginRight: 12,
     backgroundColor: 'transparent',
     padding: 4,
   },
-
   fileName: {
     flex: 1,
     textAlign: 'center',
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: darkTheme.text,
     marginHorizontal: 48,
   },
-
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 12,
   },
-
   actionButton: {
     marginLeft: 12,
     backgroundColor: 'transparent',
     padding: 8,
   },
-
   content: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.background,
   },
-
   unsupportedContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 40,
   },
-
   unsupportedText: {
     fontSize: 16,
-    color: '#666',
+    color: darkTheme.textSecondary,
     textAlign: 'center',
     marginTop: 16,
   },
-
   unsupportedSubtext: {
     fontSize: 14,
-    color: '#999',
+    color: darkTheme.textSecondary,
     textAlign: 'center',
     marginTop: 8,
   },
-
   detailsContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.surface,
     margin: 16,
     padding: 16,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: darkTheme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-
   detailsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: darkTheme.text,
     marginBottom: 16,
   },
-
   detailRow: {
     flexDirection: 'row',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: darkTheme.border,
   },
-
   detailLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#666',
+    color: darkTheme.textSecondary,
     width: 80,
   },
-
   detailValue: {
     fontSize: 14,
-    color: '#333',
+    color: darkTheme.text,
     flex: 1,
   },
 });

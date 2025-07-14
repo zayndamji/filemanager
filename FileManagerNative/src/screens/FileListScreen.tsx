@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Modal,
 } from 'react-native';
+import { darkTheme } from '../theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFileContext } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
@@ -277,13 +278,13 @@ const FileListScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: darkTheme.background,
   },
   header: {
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: darkTheme.border,
   },
   titleContainer: {
     marginBottom: 12,
@@ -291,11 +292,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: darkTheme.text,
   },
   subtitle: {
     fontSize: 14,
-    color: '#666',
+    color: darkTheme.textSecondary,
     marginTop: 4,
   },
   breadcrumb: {
@@ -305,11 +306,11 @@ const styles = StyleSheet.create({
   },
   breadcrumbLabel: {
     fontSize: 12,
-    color: '#666',
+    color: darkTheme.textSecondary,
   },
   breadcrumbPath: {
     fontSize: 12,
-    color: '#007AFF',
+    color: darkTheme.accent,
     fontFamily: 'Menlo',
   },
   upButton: {
@@ -318,12 +319,12 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: darkTheme.surface,
     borderRadius: 4,
   },
   upButtonText: {
     fontSize: 12,
-    color: '#007AFF',
+    color: darkTheme.accent,
     marginLeft: 4,
   },
   listContainer: {
@@ -338,11 +339,11 @@ const styles = StyleSheet.create({
   folderItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.surface,
     padding: 16,
     marginBottom: 8,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: darkTheme.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -351,11 +352,11 @@ const styles = StyleSheet.create({
   fileItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.surface,
     padding: 16,
     marginBottom: 8,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: darkTheme.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -370,17 +371,17 @@ const styles = StyleSheet.create({
   fileName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: darkTheme.text,
     marginBottom: 4,
   },
   fileDetails: {
     fontSize: 14,
-    color: '#666',
+    color: darkTheme.textSecondary,
     marginBottom: 2,
   },
   fileDate: {
     fontSize: 12,
-    color: '#999',
+    color: darkTheme.textSecondary,
   },
   encryptedBadge: {
     marginLeft: 8,
@@ -389,19 +390,20 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   emptyState: {
-    alignItems: 'center',
+    flex: 1,
     justifyContent: 'center',
-    paddingVertical: 40,
+    alignItems: 'center',
+    padding: 20,
   },
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#666',
+    color: darkTheme.textSecondary,
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#999',
+    color: darkTheme.textSecondary,
     marginTop: 8,
   },
 });

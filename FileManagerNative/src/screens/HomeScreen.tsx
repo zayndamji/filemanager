@@ -11,6 +11,7 @@ import { useFileContext } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
+import { darkTheme } from '../theme';
 
 const HomeScreen = () => {
   const { encryptedFiles } = useFileContext();
@@ -79,80 +80,85 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: darkTheme.background,
   },
   scrollView: {
     flex: 1,
+    backgroundColor: darkTheme.background,
   },
   header: {
-    padding: 20,
+    padding: 24,
+    backgroundColor: darkTheme.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: darkTheme.border,
     alignItems: 'center',
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
+    color: darkTheme.text,
+    marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: darkTheme.textSecondary,
+    marginBottom: 16,
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingHorizontal: 20,
-    marginBottom: 30,
+    marginVertical: 24,
   },
   statCard: {
-    backgroundColor: '#fff',
-    padding: 20,
+    backgroundColor: darkTheme.surface,
     borderRadius: 12,
+    padding: 20,
     alignItems: 'center',
-    minWidth: 140,
-    flex: 1,
-    marginHorizontal: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    width: 140,
+    shadowColor: darkTheme.shadow,
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   statValue: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: darkTheme.accent,
     marginTop: 8,
   },
   statLabel: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 14,
+    color: darkTheme.textSecondary,
     marginTop: 4,
   },
   actionsContainer: {
-    paddingHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 32,
   },
   actionCard: {
-    backgroundColor: '#fff',
-    padding: 20,
+    backgroundColor: darkTheme.surface,
     borderRadius: 12,
+    padding: 20,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    alignItems: 'center',
+    shadowColor: darkTheme.shadow,
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   actionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
-    marginTop: 12,
+    color: darkTheme.text,
+    marginTop: 8,
   },
   actionSubtitle: {
     fontSize: 14,
-    color: '#666',
+    color: darkTheme.textSecondary,
     marginTop: 4,
+    textAlign: 'center',
   },
 });
 

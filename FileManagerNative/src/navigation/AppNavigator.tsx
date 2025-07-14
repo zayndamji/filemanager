@@ -2,6 +2,7 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { darkTheme } from '../theme';
 
 // Screen imports (we'll create these next)
 import HomeScreen from '../screens/HomeScreen';
@@ -20,23 +21,19 @@ function MainTabNavigator() {
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName = 'home';
-
-          if (route.name === 'Home') {
-            iconName = 'home';
-          } else if (route.name === 'Files') {
-            iconName = 'folder';
-          } else if (route.name === 'Gallery') {
-            iconName = 'photo-library';
-          } else if (route.name === 'Upload') {
-            iconName = 'cloud-upload';
-          } else if (route.name === 'Settings') {
-            iconName = 'settings';
-          }
-
+          if (route.name === 'Home') iconName = 'home';
+          else if (route.name === 'Files') iconName = 'folder';
+          else if (route.name === 'Gallery') iconName = 'photo-library';
+          else if (route.name === 'Upload') iconName = 'cloud-upload';
+          else if (route.name === 'Settings') iconName = 'settings';
           return <Icon name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: 'gray',
+        tabBarActiveTintColor: darkTheme.accent,
+        tabBarInactiveTintColor: darkTheme.textSecondary,
+        tabBarStyle: {
+          backgroundColor: darkTheme.surface,
+          borderTopColor: darkTheme.border,
+        },
         headerShown: false,
       })}
     >
@@ -51,9 +48,9 @@ function MainTabNavigator() {
 
 export function AppNavigator() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Password" component={PasswordScreen} />
-      <Stack.Screen name="Main" component={MainTabNavigator} />
+    <Stack.Navigator>
+      <Stack.Screen name="Password" component={PasswordScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Main" component={MainTabNavigator} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

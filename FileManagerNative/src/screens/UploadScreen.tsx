@@ -64,6 +64,7 @@ import { usePasswordContext } from '../context/PasswordContext';
 import { FileManagerService } from '../utils/FileManagerService';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import RNFS from 'react-native-fs';
+import { darkTheme } from '../theme';
 
 const UploadScreen = () => {
   const { refreshFileList, encryptedFiles } = useFileContext();
@@ -367,12 +368,12 @@ const UploadScreen = () => {
 
 const styles = StyleSheet.create({
   folderInputContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.surface,
     marginHorizontal: 20,
     marginTop: 20,
     borderRadius: 12,
     padding: 12,
-    shadowColor: '#000',
+    shadowColor: darkTheme.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 2,
@@ -380,43 +381,41 @@ const styles = StyleSheet.create({
   },
   folderInput: {
     fontSize: 14,
-    color: '#333',
-    backgroundColor: '#f5f5f5',
+    color: darkTheme.text,
+    backgroundColor: darkTheme.inputBackground,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: darkTheme.inputBorder,
     marginBottom: 8,
   },
   folderPathPreview: {
     fontSize: 13,
-    color: '#666',
+    color: darkTheme.textSecondary,
     marginTop: 2,
     marginBottom: 2,
   },
   folderSelectorContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.surface,
     marginHorizontal: 20,
     marginTop: 20,
     borderRadius: 12,
     padding: 12,
-    shadowColor: '#000',
+    shadowColor: darkTheme.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 2,
     elevation: 1,
   },
   folderSelectorLabel: {
-    fontSize: 14,
-    color: '#333',
+    color: darkTheme.textSecondary,
     marginBottom: 6,
     fontWeight: '500',
   },
   folderChip: {
-    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#e0e0e0',
+    backgroundColor: darkTheme.chipBackground,
     borderRadius: 16,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -424,15 +423,15 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   selectedFolderChip: {
-    backgroundColor: '#007AFF',
+    backgroundColor: darkTheme.accent,
   },
   folderChipText: {
-    color: '#333',
+    color: darkTheme.chipText,
     fontSize: 13,
     marginRight: 4,
   },
   selectedFolderChipText: {
-    color: '#fff',
+    color: darkTheme.chipText,
     fontWeight: '600',
   },
   addTagButton: {
@@ -467,13 +466,13 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
   tagsInputContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.surface,
     marginHorizontal: 20,
     marginTop: 20,
     marginBottom: 8,
     borderRadius: 12,
     padding: 12,
-    shadowColor: '#000',
+    shadowColor: darkTheme.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 2,
@@ -481,29 +480,29 @@ const styles = StyleSheet.create({
   },
   tagsInputLabel: {
     fontSize: 14,
-    color: '#333',
+    color: darkTheme.textSecondary,
     marginBottom: 6,
     fontWeight: '500',
   },
   tagsInput: {
     flex: 1,
     fontSize: 14,
-    color: '#333',
-    backgroundColor: '#f5f5f5',
+    color: darkTheme.text,
+    backgroundColor: darkTheme.inputBackground,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginLeft: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: darkTheme.inputBorder,
   },
   pendingFilesContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.surface,
     marginHorizontal: 20,
     marginBottom: 20,
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: darkTheme.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -512,7 +511,7 @@ const styles = StyleSheet.create({
   pendingFilesTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: darkTheme.text,
     marginBottom: 8,
   },
   pendingFileRow: {
@@ -522,45 +521,45 @@ const styles = StyleSheet.create({
   },
   pendingFileName: {
     fontSize: 14,
-    color: '#333',
+    color: darkTheme.text,
     marginLeft: 8,
     flex: 1,
   },
   pendingFileType: {
     fontSize: 12,
-    color: '#666',
+    color: darkTheme.textSecondary,
     marginLeft: 8,
   },
   uploadAllButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: darkTheme.accent,
     paddingVertical: 10,
     borderRadius: 8,
     marginTop: 12,
     alignItems: 'center',
   },
   uploadAllButtonText: {
-    color: '#fff',
+    color: darkTheme.chipText,
     fontSize: 16,
     fontWeight: '600',
   },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: darkTheme.background,
   },
   header: {
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: darkTheme.border,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: darkTheme.text,
   },
   subtitle: {
     fontSize: 14,
-    color: '#666',
+    color: darkTheme.textSecondary,
     marginTop: 4,
   },
   content: {
@@ -570,11 +569,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.surface,
     marginHorizontal: 20,
     marginTop: 20,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: darkTheme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -582,7 +581,7 @@ const styles = StyleSheet.create({
   },
   uploadingText: {
     fontSize: 16,
-    color: '#666',
+    color: darkTheme.textSecondary,
     marginTop: 12,
   },
   optionsContainer: {
@@ -591,11 +590,11 @@ const styles = StyleSheet.create({
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.surface,
     padding: 20,
     marginBottom: 12,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: darkTheme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -608,6 +607,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
+    backgroundColor: darkTheme.surface,
   },
   optionContent: {
     flex: 1,
@@ -615,12 +615,12 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: darkTheme.text,
     marginBottom: 4,
   },
   optionSubtitle: {
     fontSize: 14,
-    color: '#666',
+    color: darkTheme.textSecondary,
   },
   chevron: {
     marginLeft: 8,
@@ -628,12 +628,12 @@ const styles = StyleSheet.create({
   infoContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#fff',
+    backgroundColor: darkTheme.surface,
     padding: 16,
     marginHorizontal: 20,
     marginBottom: 20,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: darkTheme.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -641,7 +641,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: '#666',
+    color: darkTheme.textSecondary,
     marginLeft: 12,
     flex: 1,
     lineHeight: 20,

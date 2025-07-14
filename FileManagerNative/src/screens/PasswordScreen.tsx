@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePasswordContext } from '../context/PasswordContext';
 import { useNavigation } from '@react-navigation/native';
+import { darkTheme } from '../theme';
 
 const PasswordScreen = () => {
   const [inputPassword, setInputPassword] = useState('');
@@ -63,7 +64,7 @@ const PasswordScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: darkTheme.background,
   },
   keyboardView: {
     flex: 1,
@@ -78,32 +79,32 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 8,
-    color: '#333',
+    color: darkTheme.text,
   },
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 40,
-    color: '#666',
+    color: darkTheme.textSecondary,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: darkTheme.inputBorder,
     borderRadius: 8,
     padding: 16,
     fontSize: 16,
     marginBottom: 20,
-    backgroundColor: '#fff',
-    color: '#333',
+    backgroundColor: darkTheme.inputBackground,
+    color: darkTheme.text,
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: darkTheme.accent,
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
   },
   buttonText: {
-    color: '#fff',
+    color: darkTheme.chipText,
     fontSize: 16,
     fontWeight: '600',
   },
