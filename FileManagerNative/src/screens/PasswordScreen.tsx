@@ -115,6 +115,7 @@ const PasswordScreen = () => {
           />
           <TextInput
             style={styles.input}
+            secureTextEntry
             value={inputSalt}
             onChangeText={setInputSalt}
             placeholder="Salt (required, can be edited)"
