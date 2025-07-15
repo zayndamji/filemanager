@@ -273,8 +273,49 @@ const SettingsScreen = () => {
   return (
     <View style={getStyles(theme).container}>
       <Text style={getStyles(theme).title}>Settings</Text>
+
+      {/* Log Out (standalone) */}
       <TouchableOpacity
-        style={[getStyles(theme).deleteButton, deleting && getStyles(theme).deleteButtonDisabled]}
+        style={[getStyles(theme).deleteButton, { backgroundColor: theme.accent, marginBottom: 32 }]}
+        onPress={handleLogout}
+      >
+        <Icon name="logout" size={24} color={theme.chipText} />
+        <Text style={getStyles(theme).deleteButtonText}>Log Out</Text>
+      </TouchableOpacity>
+
+      {/* Theme Section */}
+      <Text style={getStyles(theme).sectionHeader}>Theme</Text>
+      <TouchableOpacity
+        style={[getStyles(theme).deleteButton, { backgroundColor: theme.card, marginTop: 12 }]}
+        onPress={handleToggleTheme}
+      >
+        <Icon name={isDark ? 'brightness-4' : 'brightness-7'} size={24} color={theme.chipText} />
+        <Text style={getStyles(theme).deleteButtonText}>{isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</Text>
+      </TouchableOpacity>
+
+      {/* Export/Import Section */}
+      <Text style={getStyles(theme).sectionHeader}>Export / Import</Text>
+      <TouchableOpacity
+        style={[getStyles(theme).deleteButton, { backgroundColor: theme.accentSecondary, marginTop: 12 }]}
+        onPress={handleExport}
+        disabled={exporting}
+      >
+        <Icon name="archive" size={24} color={theme.chipText} />
+        <Text style={getStyles(theme).deleteButtonText}>{exporting ? 'Exporting...' : 'Export to ZIP'}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[getStyles(theme).deleteButton, { backgroundColor: theme.accentSecondary, marginTop: 12 }]}
+        onPress={handleImport}
+        disabled={exporting}
+      >
+        <Icon name="unarchive" size={24} color={theme.chipText} />
+        <Text style={getStyles(theme).deleteButtonText}>Import from ZIP</Text>
+      </TouchableOpacity>
+
+      {/* Danger Zone Section */}
+      <Text style={[getStyles(theme).sectionHeader, { color: theme.error, marginTop: 32 }]}>Danger Zone</Text>
+      <TouchableOpacity
+        style={[getStyles(theme).deleteButton, deleting && getStyles(theme).deleteButtonDisabled, { marginTop: 12 }]}
         onPress={handleDeleteAll}
         disabled={deleting}
       >
@@ -282,41 +323,21 @@ const SettingsScreen = () => {
         <Text style={getStyles(theme).deleteButtonText}>Delete All Files</Text>
       </TouchableOpacity>
       {deleting && <ActivityIndicator size="large" color={theme.error} style={{ marginTop: 16 }} />}
-      <TouchableOpacity
-        style={[getStyles(theme).deleteButton, { backgroundColor: theme.accent, marginTop: 24 }]}
-        onPress={handleLogout}
-      >
-        <Icon name="logout" size={24} color={theme.chipText} />
-        <Text style={getStyles(theme).deleteButtonText}>Log Out</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[getStyles(theme).deleteButton, { backgroundColor: theme.card, marginTop: 24 }]}
-        onPress={handleToggleTheme}
-      >
-        <Icon name={isDark ? 'brightness-4' : 'brightness-7'} size={24} color={theme.chipText} />
-        <Text style={getStyles(theme).deleteButtonText}>{isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[getStyles(theme).deleteButton, { backgroundColor: theme.accentSecondary, marginTop: 24 }]} 
-        onPress={handleExport}
-        disabled={exporting}
-      >
-        <Icon name="archive" size={24} color={theme.chipText} />
-        <Text style={getStyles(theme).deleteButtonText}>{exporting ? 'Exporting...' : 'Export Encrypted Files (ZIP)'}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[getStyles(theme).deleteButton, { backgroundColor: theme.accentSecondary, marginTop: 24 }]} 
-        onPress={handleImport}
-        disabled={exporting}
-      >
-        <Icon name="unarchive" size={24} color={theme.chipText} />
-        <Text style={getStyles(theme).deleteButtonText}>Import Encrypted Files (ZIP)</Text>
-      </TouchableOpacity>
     </View>
   );
 };
 
 const getStyles = (theme: typeof darkTheme) => StyleSheet.create({
+  sectionHeader: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.textSecondary,
+    marginTop: 24,
+    marginBottom: 4,
+    alignSelf: 'center',
+    textAlign: 'center',
+    width: '100%',
+  },
   container: {
     flex: 1,
     alignItems: 'center',
