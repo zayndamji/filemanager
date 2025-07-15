@@ -216,6 +216,12 @@ const SettingsScreen = () => {
       }
       // Clean up temp folder
       await RNFS.unlink(importDir);
+      // Delete the imported ZIP file
+      try {
+        await RNFS.unlink(zipUri);
+      } catch (zipDelErr) {
+        // Ignore deletion errors
+      }
       // Refresh file list
       await refreshFileList();
       Alert.alert('Import Complete', `${importedCount} file${importedCount === 1 ? '' : 's'} imported. Total size: ${(importedSize / (1024 * 1024)).toFixed(2)} MB.`);

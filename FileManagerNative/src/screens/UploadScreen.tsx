@@ -455,6 +455,17 @@ const UploadScreen = () => {
           selectedFolderPath,
           tags
         );
+        // Attempt to delete the original file if it is in a tmp or cache directory
+        try {
+          if (file.uri.includes('/tmp/') || file.uri.includes('/cache/')) {
+            const exists = await RNFS.exists(file.uri);
+            if (exists) {
+              await RNFS.unlink(file.uri);
+            }
+          }
+        } catch (delErr) {
+          // Ignore deletion errors
+        }
       }
       Alert.alert('Success', `Uploaded and encrypted ${pendingFiles.length} file(s) successfully`);
       setPendingFiles([]);
