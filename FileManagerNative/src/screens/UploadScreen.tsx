@@ -301,53 +301,6 @@ const getStyles = (theme: typeof import('../theme').darkTheme) => StyleSheet.cre
   },
 });
 
-const FolderPathSelector = ({ encryptedFiles, selectedPath, setSelectedPath, disabled, styles }: {
-  encryptedFiles: any[],
-  selectedPath: string[],
-  setSelectedPath: (path: string[]) => void,
-  disabled?: boolean,
-  styles: ReturnType<typeof getStyles>
-}) => {
-  const [paths, setPaths] = useState<string[][]>([]);
-  useEffect(() => {
-    // Collect all folder paths from file metadata
-    const allPaths: Set<string> = new Set();
-    encryptedFiles.forEach(file => {
-      if (Array.isArray(file.metadata.folderPath)) {
-        allPaths.add('/' + file.metadata.folderPath.join('/'));
-      } else if (typeof file.metadata.folderPath === 'string') {
-        allPaths.add(file.metadata.folderPath);
-      }
-    });
-    // Always include root
-    allPaths.add('/');
-    // Convert to array of arrays
-    setPaths(Array.from(allPaths).map(p => p === '/' ? [] : p.replace(/^\//, '').split('/')));
-  }, [encryptedFiles]);
-
-  return (
-    <View style={styles.folderSelectorContainer}>
-      <Text style={styles.folderSelectorLabel}>Upload to folder:</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
-        {paths.map((pathArr, idx) => {
-          const isSelected = JSON.stringify(pathArr) === JSON.stringify(selectedPath);
-          const display = pathArr.length === 0 ? '/' : '/' + pathArr.join('/');
-          return (
-            <TouchableOpacity
-              key={display + idx}
-              style={[styles.folderChip, isSelected && styles.selectedFolderChip]}
-              onPress={() => setSelectedPath(pathArr)}
-              disabled={disabled}
-            >
-              <Text style={[styles.folderChipText, isSelected && styles.selectedFolderChipText]}>{display}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-};
-
 const UploadScreen = () => {
   const { refreshFileList, encryptedFiles } = useFileContext();
   const { password, derivedKey } = usePasswordContext();
@@ -640,14 +593,6 @@ const UploadScreen = () => {
             </View>
           </>
         )}
-
-        <FolderPathSelector
-          encryptedFiles={encryptedFiles}
-          selectedPath={selectedFolderPath}
-          setSelectedPath={setSelectedFolderPath}
-          disabled={uploading}
-          styles={styles}
-        />
 
         <View style={styles.infoContainer}>
           <Icon name="security" size={20} color={theme.accentSecondary} />
