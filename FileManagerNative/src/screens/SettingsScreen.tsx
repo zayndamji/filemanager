@@ -7,8 +7,9 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { FileManagerService } from '../utils/FileManagerService';
 import { ThemeContext, darkTheme, lightTheme } from '../theme';
 import RNFS from 'react-native-fs';
-import { zip } from 'react-native-zip-archive';
+import { zip, unzip } from 'react-native-zip-archive';
 import Share from 'react-native-share';
+import DocumentPicker from 'react-native-document-picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 type RootStackParamList = {
@@ -108,6 +109,121 @@ const SettingsScreen = () => {
       setExporting(false);
     }
   };
+
+  // Import ZIP archive and add decryptable files
+  const handleImport = async () => {
+    if (!derivedKey) {
+      Alert.alert('Error', 'No password set.');
+      return;
+    }
+    try {
+      // Pick ZIP file
+      const res = await DocumentPicker.pick({
+        type: [DocumentPicker.types.zip],
+      });
+      if (!res || !res[0] || !res[0].uri) {
+        Alert.alert('Import Cancelled', 'No ZIP file selected.');
+        return;
+      }
+      const zipUri = res[0].uri.replace('file://', '');
+      const filesDir = RNFS.DocumentDirectoryPath;
+      const importDir = `${filesDir}/import_temp`;
+      await RNFS.mkdir(importDir);
+      // Unzip
+      await unzip(zipUri, importDir);
+      // List all files in import temp dir
+      const importFiles = await RNFS.readDir(importDir);
+      // Find all .metadata.enc files
+      const metadataFiles = importFiles.filter(f => f.name.endsWith('.metadata.enc'));
+      let importedCount = 0;
+      let importedSize = 0;
+      for (const file of metadataFiles) {
+        const baseName = file.name.replace('.metadata.enc', '');
+        const encPath = `${importDir}/${baseName}.enc`;
+        const metaPath = file.path;
+        const previewPath = `${importDir}/${baseName}.preview.enc`;
+        // Destination paths
+        const destEnc = `${filesDir}/${baseName}.enc`;
+        const destMeta = `${filesDir}/${baseName}.metadata.enc`;
+        const destPreview = `${filesDir}/${baseName}.preview.enc`;
+
+        // Check existence in destination
+        const encExists = await RNFS.exists(destEnc);
+        const metaExists = await RNFS.exists(destMeta);
+        const destPreviewExists = await RNFS.exists(destPreview);
+        // Check if preview exists in import temp
+        const previewExistsInImport = await RNFS.exists(previewPath);
+
+        // Only skip if all destination files exist (and preview only if present in import)
+        if (encExists && metaExists && (!previewExistsInImport || destPreviewExists)) {
+          console.log(`[Import] All files already exist, skipping: UUID=${baseName}, encPath=${destEnc}`);
+          continue;
+        }
+
+        let copied = false;
+        // Copy missing .enc
+        if (!encExists) {
+          const encSourceExists = await RNFS.exists(encPath);
+          if (encSourceExists) {
+            try {
+              await RNFS.copyFile(encPath, destEnc);
+              importedSize += (await RNFS.stat(encPath)).size;
+              console.log(`[Import] Copied: UUID=${baseName}, encPath=${destEnc}`);
+              copied = true;
+            } catch (err) {
+              console.error(`[Import] Failed to copy .enc: ${encPath} -> ${destEnc}`);
+            }
+          } else {
+            console.error(`[Import] Source .enc missing: ${encPath}`);
+          }
+        } else {
+          console.log(`[Import] .enc already exists, skipping: UUID=${baseName}, encPath=${destEnc}`);
+        }
+        // Copy missing .metadata.enc
+        if (!metaExists) {
+          const metaSourceExists = await RNFS.exists(metaPath);
+          if (metaSourceExists) {
+            try {
+              await RNFS.copyFile(metaPath, destMeta);
+              importedSize += (await RNFS.stat(metaPath)).size;
+              // No logging for metadata file path or contents
+              copied = true;
+            } catch (err) {
+              console.error(`[Import] Failed to copy .metadata.enc for UUID=${baseName}`);
+            }
+          } else {
+            console.error(`[Import] Source .metadata.enc missing for UUID=${baseName}`);
+          }
+        } else {
+          // No logging for metadata file path or contents
+        }
+        // Copy missing .preview.enc if present in import
+        if (previewExistsInImport) {
+          if (!destPreviewExists) {
+            try {
+              await RNFS.copyFile(previewPath, destPreview);
+              importedSize += (await RNFS.stat(previewPath)).size;
+              console.log(`[Import] Copied: ${destPreview}`);
+              copied = true;
+            } catch (err) {
+              console.error(`[Import] Failed to copy .preview.enc: ${previewPath} -> ${destPreview}`, err);
+            }
+          } else {
+            console.log(`[Import] .preview.enc already exists, skipping: ${destPreview}`);
+          }
+        }
+        if (copied) importedCount++;
+      }
+      // Clean up temp folder
+      await RNFS.unlink(importDir);
+      // Refresh file list
+      await refreshFileList();
+      Alert.alert('Import Complete', `${importedCount} file${importedCount === 1 ? '' : 's'} imported. Total size: ${(importedSize / (1024 * 1024)).toFixed(2)} MB.`);
+    } catch (err) {
+      Alert.alert('Error', 'Import failed.');
+    }
+  };
+
   const [isDark, setIsDark] = useState(theme === darkTheme);
 
   const handleLogout = () => {
@@ -175,12 +291,20 @@ const SettingsScreen = () => {
         <Text style={getStyles(theme).deleteButtonText}>{isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</Text>
       </TouchableOpacity>
       <TouchableOpacity
-        style={[getStyles(theme).deleteButton, { backgroundColor: theme.accentSecondary, marginTop: 24 }]}
+        style={[getStyles(theme).deleteButton, { backgroundColor: theme.accentSecondary, marginTop: 24 }]} 
         onPress={handleExport}
         disabled={exporting}
       >
         <Icon name="archive" size={24} color={theme.chipText} />
         <Text style={getStyles(theme).deleteButtonText}>{exporting ? 'Exporting...' : 'Export Encrypted Files (ZIP)'}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[getStyles(theme).deleteButton, { backgroundColor: theme.accentSecondary, marginTop: 24 }]} 
+        onPress={handleImport}
+        disabled={exporting}
+      >
+        <Icon name="unarchive" size={24} color={theme.chipText} />
+        <Text style={getStyles(theme).deleteButtonText}>Import Encrypted Files (ZIP)</Text>
       </TouchableOpacity>
     </View>
   );
