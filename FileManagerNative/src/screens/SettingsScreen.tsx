@@ -58,11 +58,17 @@ const SettingsScreen = () => {
             // Add metadata.enc and its corresponding file
             const baseName = file.name.replace('.metadata.enc', '');
             const filePath = `${filesDir}/${baseName}.enc`;
+            const previewPath = `${filesDir}/${baseName}.preview.enc`;
             // Check if file exists
             const exists = await RNFS.exists(filePath);
             if (exists) {
               filesToExport.push(file.path);
               filesToExport.push(filePath);
+              // If .preview.enc exists, add it
+              const previewExists = await RNFS.exists(previewPath);
+              if (previewExists) {
+                filesToExport.push(previewPath);
+              }
             }
           }
         }
