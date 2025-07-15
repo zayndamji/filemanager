@@ -18,6 +18,8 @@ import { FileManagerService } from '../utils/FileManagerService';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import RNFS from 'react-native-fs';
 import { ThemeContext } from '../theme';
+import MetadataEditor from '../components/MetadataEditor/MetadataEditor';
+import { useMetadataEditor } from '../components/MetadataEditor/useMetadataEditor';
 
 const getStyles = (theme: typeof import('../theme').darkTheme) => StyleSheet.create({
   container: {
@@ -306,10 +308,12 @@ const UploadScreen = () => {
   const { password, derivedKey } = usePasswordContext();
   const [uploading, setUploading] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<Array<{ uri: string; name: string; type: string }>>([]);
-  const [tagInput, setTagInput] = useState<string>('');
-  const [tags, setTags] = useState<string[]>([]);
-  const [selectedFolderPath, setSelectedFolderPath] = useState<string[]>([]);
-  const [folderPathInput, setFolderPathInput] = useState('');
+  // Use unified metadata editor for folder path and tags
+  const metaEditor = useMetadataEditor({
+    initialName: '', // not used in upload
+    initialFolderPath: '',
+    initialTags: [],
+  });
   const { theme } = React.useContext(ThemeContext);
   const styles = getStyles(theme);
 
@@ -405,8 +409,8 @@ const UploadScreen = () => {
           file.name,
           file.type,
           derivedKey,
-          selectedFolderPath,
-          tags
+          metaEditor.folderPath.split('/').filter(Boolean),
+          metaEditor.tags
         );
         // Attempt to delete the original file if it is in a tmp or cache directory
         try {
@@ -422,8 +426,8 @@ const UploadScreen = () => {
       }
       Alert.alert('Success', `Uploaded and encrypted ${pendingFiles.length} file(s) successfully`);
       setPendingFiles([]);
-      setTags([]);
-      setTagInput('');
+      metaEditor.setTags([]);
+      metaEditor.setFolderPath('');
       await refreshFileList();
     } catch (error) {
       console.error('File upload error:', error);
@@ -465,7 +469,7 @@ const UploadScreen = () => {
       <View style={styles.header}>
         <Text style={styles.title}>Upload Files</Text>
         <Text style={styles.subtitle}>
-          Files will be encrypted and saved to: /{selectedFolderPath.length === 0 ? '' : selectedFolderPath.join('/')}
+          Files will be encrypted and saved to: /{metaEditor.folderPath.split('/').filter(Boolean).join('/')}
         </Text>
       </View>
 
@@ -499,81 +503,18 @@ const UploadScreen = () => {
           ))}
         </View>
 
-        {/* Folder path input above tags input */}
+        {/* Unified MetadataEditor for folder path and tags */}
         {pendingFiles.length > 0 && (
           <>
-            <View style={styles.folderInputContainer}>
-              <Text style={styles.folderSelectorLabel}>Folder path:</Text>
-              <TextInput
-                style={styles.folderInput}
-                value={folderPathInput}
-                onChangeText={text => {
-                  // Only allow /, A-Z, a-z, 0-9
-                  const filtered = text.replace(/[^A-Za-z0-9\/]/g, '');
-                  setFolderPathInput(filtered);
-                  // Split by /, filter out empty
-                  const arr = filtered.split('/').filter(Boolean);
-                  setSelectedFolderPath(arr);
-                }}
-                placeholder="e.g. photos/2025"
-                editable={!uploading}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="done"
-              />
-              <Text style={styles.folderPathPreview}>
-                Uploading to: /{selectedFolderPath.join('/')}
-              </Text>
-            </View>
-            <View style={styles.tagsInputContainer}>
-              <Text style={styles.tagsInputLabel}>Tags:</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Icon name="label" size={20} color={theme.accentSecondary} />
-                <TextInput
-                  style={styles.tagsInput}
-                  value={tagInput}
-                  onChangeText={setTagInput}
-                  placeholder="Add a tag and press +"
-                  editable={!uploading}
-                  onSubmitEditing={() => {
-                    const newTag = tagInput.trim();
-                    if (newTag && !tags.includes(newTag)) {
-                      setTags([...tags, newTag]);
-                      setTagInput('');
-                    }
-                  }}
-                  returnKeyType="done"
-                />
-                <TouchableOpacity
-                  style={styles.addTagButton}
-                  onPress={() => {
-                    const newTag = tagInput.trim();
-                    if (newTag && !tags.includes(newTag)) {
-                      setTags([...tags, newTag]);
-                      setTagInput('');
-                    }
-                  }}
-                  disabled={uploading || !tagInput.trim()}
-                >
-                  <Icon name="add" size={24} color={uploading || !tagInput.trim() ? theme.disabled : theme.accent} />
-                </TouchableOpacity>
-              </View>
-              {/* Show tags as chips/list */}
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
-                {tags.map((tag, idx) => (
-                  <View key={tag + idx} style={styles.tagChip}>
-                    <Text style={styles.tagChipText}>{tag}</Text>
-                    <TouchableOpacity
-                      onPress={() => setTags(tags.filter((t, i) => i !== idx))}
-                      style={styles.removeTagButton}
-                      disabled={uploading}
-                    >
-                      <Icon name="close" size={16} color={theme.chipText} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            </View>
+            <MetadataEditor
+              folderPath={metaEditor.folderPath}
+              tags={metaEditor.tags}
+              onFolderPathChange={metaEditor.setFolderPath}
+              onTagsChange={metaEditor.setTags}
+              editable={!uploading}
+              // name and onNameChange omitted for upload
+            />
+            {/* Folder path preview now handled inside MetadataEditor */}
             <View style={styles.pendingFilesContainer}>
               <Text style={styles.pendingFilesTitle}>Files to upload:</Text>
               {pendingFiles.map((file, idx) => (

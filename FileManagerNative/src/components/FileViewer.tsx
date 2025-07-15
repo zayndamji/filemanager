@@ -30,7 +30,9 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
 }
 // react native and icon imports
 import { Component, ErrorInfo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import MetadataEditor from './MetadataEditor/MetadataEditor';
+import { useMetadataEditor } from './MetadataEditor/useMetadataEditor';
 import { darkTheme } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -105,6 +107,13 @@ const FileViewer: React.FC<FileViewerProps> = ({
   React.useEffect(() => {
     console.log('[FileViewer] metadata changed:', { uuid: viewerMetadata?.uuid });
   }, [viewerMetadata]);
+
+  // Use unified metadata editor state
+  const metaEditor = useMetadataEditor({
+    initialName: viewerMetadata.name,
+    initialFolderPath: viewerMetadata.folderPath.join('/'),
+    initialTags: viewerMetadata.tags || [],
+  });
   const insets = useSafeAreaInsets();
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
@@ -159,21 +168,16 @@ const FileViewer: React.FC<FileViewerProps> = ({
 
   // --- Edit Metadata State ---
   const [editing, setEditing] = React.useState(false);
-  const [editName, setEditName] = React.useState(viewerMetadata.name);
-  const [editFolderPathInput, setEditFolderPathInput] = React.useState(viewerMetadata.folderPath.join('/'));
-  const [editFolderPath, setEditFolderPath] = React.useState<string[]>(viewerMetadata.folderPath);
-  const [editTagInput, setEditTagInput] = React.useState('');
-  const [editTags, setEditTags] = React.useState<string[]>(viewerMetadata.tags || []);
-
-  // Reset edit fields when opening edit mode or metadata changes
+  // Reset metaEditor state when opening edit mode or metadata changes
   React.useEffect(() => {
     if (editing) {
-      setEditName(viewerMetadata.name);
-      setEditFolderPathInput(viewerMetadata.folderPath.join('/'));
-      setEditFolderPath(viewerMetadata.folderPath);
-      setEditTags(viewerMetadata.tags || []);
-      setEditTagInput('');
+      metaEditor.reset({
+        initialName: viewerMetadata.name,
+        initialFolderPath: viewerMetadata.folderPath.join('/'),
+        initialTags: viewerMetadata.tags || [],
+      });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing, viewerMetadata]);
 
   // --- Save Metadata Handler ---
@@ -183,19 +187,15 @@ const FileViewer: React.FC<FileViewerProps> = ({
       await FileManagerService.updateFileMetadata(
         metadata.uuid,
         {
-          name: editName,
-          folderPath: editFolderPath,
-          tags: editTags,
+          name: metaEditor.name,
+          folderPath: metaEditor.folderPath.split('/').filter(Boolean),
+          tags: metaEditor.tags,
         },
         derivedKey
       );
       // Reload updated metadata from disk
       const updatedMetadata = await FileManagerService.loadFileMetadata(metadata.uuid, derivedKey);
       setViewerMetadata(updatedMetadata);
-      setEditName(updatedMetadata.name);
-      setEditFolderPathInput(updatedMetadata.folderPath.join('/'));
-      setEditFolderPath(updatedMetadata.folderPath);
-      setEditTags(updatedMetadata.tags || []);
       setEditing(false);
       if (onMetadataUpdated) {
         onMetadataUpdated();
@@ -284,85 +284,15 @@ const FileViewer: React.FC<FileViewerProps> = ({
             {editing && (
               <View style={styles.detailsContainer}>
                 <Text style={styles.detailsTitle}>Edit Metadata</Text>
-                {/* Name input */}
-                <View style={{ marginBottom: 12 }}>
-                  <Text style={{ fontSize: 14, color: '#666', marginBottom: 4 }}>Name:</Text>
-                  <TextInput
-                    style={{ fontSize: 14, color: '#333', backgroundColor: '#f5f5f5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#e0e0e0' }}
-                    value={editName}
-                    onChangeText={setEditName}
-                    editable={true}
-                  />
-                </View>
-                {/* Folder path input */}
-                <View style={{ marginBottom: 12 }}>
-                  <Text style={{ fontSize: 14, color: '#666', marginBottom: 4 }}>Folder path:</Text>
-                  <TextInput
-                    style={{ fontSize: 14, color: '#333', backgroundColor: '#f5f5f5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#e0e0e0' }}
-                    value={editFolderPathInput}
-                    onChangeText={text => {
-                      const filtered = text.replace(/[^A-Za-z0-9\/]/g, '');
-                      setEditFolderPathInput(filtered);
-                      const arr = filtered.split('/').filter(Boolean);
-                      setEditFolderPath(arr);
-                    }}
-                    placeholder="e.g. photos/2025"
-                    editable={true}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  <Text style={{ fontSize: 13, color: '#666', marginTop: 2, marginBottom: 2 }}>
-                    /{editFolderPath.join('/')}
-                  </Text>
-                </View>
-                {/* Tags input */}
-                <View style={{ marginBottom: 12 }}>
-                  <Text style={{ fontSize: 14, color: '#666', marginBottom: 4 }}>Tags:</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Icon name="label" size={20} color="#34C759" />
-                    <TextInput
-                      style={{ flex: 1, fontSize: 14, color: '#333', backgroundColor: '#f5f5f5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginLeft: 8, borderWidth: 1, borderColor: '#e0e0e0' }}
-                      value={editTagInput}
-                      onChangeText={setEditTagInput}
-                      placeholder="Add a tag and press +"
-                      editable={true}
-                      onSubmitEditing={() => {
-                        const newTag = editTagInput.trim();
-                        if (newTag && !editTags.includes(newTag)) {
-                          setEditTags([...editTags, newTag]);
-                          setEditTagInput('');
-                        }
-                      }}
-                      returnKeyType="done"
-                    />
-                    <Pressable
-                      style={{ marginLeft: 8, backgroundColor: '#f5f5f5', borderRadius: 20, padding: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#e0e0e0' }}
-                      onPress={() => {
-                        const newTag = editTagInput.trim();
-                        if (newTag && !editTags.includes(newTag)) {
-                          setEditTags([...editTags, newTag]);
-                          setEditTagInput('');
-                        }
-                      }}
-                    >
-                      <Icon name="add" size={24} color={editTagInput.trim() ? '#007AFF' : '#ccc'} />
-                    </Pressable>
-                  </View>
-                  {/* Show tags as chips/list */}
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
-                    {editTags.map((tag, idx) => (
-                      <View key={tag + idx} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#007AFF', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 4, marginRight: 8, marginBottom: 8 }}>
-                        <Text style={{ color: '#fff', fontSize: 13, marginRight: 4 }}>{tag}</Text>
-                        <Pressable
-                          onPress={() => setEditTags(editTags.filter((t, i) => i !== idx))}
-                          style={{ backgroundColor: '#007AFF', borderRadius: 10, padding: 2, marginLeft: 2 }}
-                        >
-                          <Icon name="close" size={16} color="#fff" />
-                        </Pressable>
-                      </View>
-                    ))}
-                  </View>
-                </View>
+                <MetadataEditor
+                  name={metaEditor.name}
+                  folderPath={metaEditor.folderPath}
+                  tags={metaEditor.tags}
+                  onNameChange={metaEditor.setName}
+                  onFolderPathChange={metaEditor.setFolderPath}
+                  onTagsChange={metaEditor.setTags}
+                  editable={true}
+                />
                 {/* Save/Cancel buttons */}
                 <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
                   <Pressable
