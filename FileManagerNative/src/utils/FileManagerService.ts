@@ -281,7 +281,7 @@ export class FileManagerService {
   }
 
   /**
-   * Deletes all files in the app's document directory (not just encrypted ones)
+   * Deletes all encrypted files (of the user's key) in the app's document directory
    */
   static async deleteAllFiles(derivedKey: Uint8Array): Promise<number> {
     const files = await RNFS.readDir(this.documentsPath);
