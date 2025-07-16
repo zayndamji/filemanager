@@ -1,8 +1,0 @@
-{
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "react-native-fs": ["utils/rnfs.web.js"]
-    }
-  }
-}

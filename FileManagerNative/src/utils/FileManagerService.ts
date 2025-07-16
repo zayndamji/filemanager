@@ -1,44 +1,5 @@
-import * as FileSystem from './FileSystem';
-import { Platform } from 'react-native';
 import RNFS from 'react-native-fs';
 import { EncryptionUtils } from './EncryptionUtils';
-
-// Web helpers for File System Access API
-async function getWebDirectoryHandle(): Promise<any> {
-  // You should store this handle in app state/context after user picks it
-  // For demo, always prompt
-  // @ts-ignore
-  if ('showDirectoryPicker' in window) {
-    // @ts-ignore
-    return await window.showDirectoryPicker();
-  }
-  throw new Error('File System Access API not supported');
-}
-
-async function getWebFileHandle(fileName: string, opts: { create?: boolean } = {}): Promise<any> {
-  const dir = await getWebDirectoryHandle();
-  return await dir.getFileHandle(fileName, opts);
-}
-
-async function webWriteFile(fileName: string, data: Uint8Array | string) {
-  const fileHandle = await getWebFileHandle(fileName, { create: true });
-  const writable = await fileHandle.createWritable();
-  await writable.write(data);
-  await writable.close();
-}
-
-async function webReadFile(fileName: string): Promise<Uint8Array> {
-  const fileHandle = await getWebFileHandle(fileName);
-  const file = await fileHandle.getFile();
-  const buf = await file.arrayBuffer();
-  return new Uint8Array(buf);
-}
-
-async function webDeleteFile(fileName: string) {
-  const dir = await getWebDirectoryHandle();
-  // @ts-ignore
-  await dir.removeEntry(fileName);
-}
 
 export interface FileMetadata {
   name: string;
@@ -61,22 +22,6 @@ export interface EncryptedFile {
 }
 
 export class FileManagerService {
-  /**
-   * Creates a temporary file from data and returns its path (cross-platform)
-   */
-  static async createTempFile(data: Uint8Array, fileName: string): Promise<string> {
-    const tempName = `temp_${Date.now()}_${fileName}`;
-    await FileSystem.writeFile(tempName, data, 'base64');
-    return tempName;
-  }
-
-  /**
-   * Deletes a temporary file (cross-platform)
-   */
-  static async deleteTempFile(tempFilePath: string): Promise<void> {
-    await FileSystem.deleteFile(tempFilePath);
-  }
-  
   /**
    * Updates the metadata for a file (re-encrypts and saves metadata.enc)
    */
@@ -102,11 +47,7 @@ export class FileManagerService {
     const metadataBuffer = new TextEncoder().encode(metadataString);
     const encryptedMetadata = await EncryptionUtils.encryptData(metadataBuffer, key);
     const metadataBase64 = Buffer.from(encryptedMetadata).toString('base64');
-    if (Platform.OS === 'web') {
-      await webWriteFile(`${uuid}.metadata.enc`, metadataBase64);
-    } else {
-      await RNFS.writeFile(metadataPath, metadataBase64, 'base64');
-    }
+    await RNFS.writeFile(metadataPath, metadataBase64, 'base64');
   }
   private static documentsPath = RNFS.DocumentDirectoryPath;
 
@@ -148,31 +89,19 @@ export class FileManagerService {
     // Write encrypted file as base64
     const filePath = this.getFilePath(uuid, 'file');
     const fileBase64 = Buffer.from(encryptedFile).toString('base64');
-    if (Platform.OS === 'web') {
-      await webWriteFile(`${uuid}.enc`, fileBase64);
-    } else {
-      await RNFS.writeFile(filePath, fileBase64, 'base64');
-    }
+    await RNFS.writeFile(filePath, fileBase64, 'base64');
 
     // Write encrypted metadata as base64
     const metadataPath = this.getFilePath(uuid, 'metadata');
     const metadataBase64 = Buffer.from(encryptedMetadata).toString('base64');
-    if (Platform.OS === 'web') {
-      await webWriteFile(`${uuid}.metadata.enc`, metadataBase64);
-    } else {
-      await RNFS.writeFile(metadataPath, metadataBase64, 'base64');
-    }
+    await RNFS.writeFile(metadataPath, metadataBase64, 'base64');
 
     // Write preview if present
     let previewPath: string | undefined;
     if (encryptedPreview) {
       previewPath = this.getFilePath(uuid, 'preview');
       const previewBase64 = Buffer.from(encryptedPreview).toString('base64');
-      if (Platform.OS === 'web') {
-        await webWriteFile(`${uuid}.preview.enc`, previewBase64);
-      } else {
-        await RNFS.writeFile(previewPath, previewBase64, 'base64');
-      }
+      await RNFS.writeFile(previewPath, previewBase64, 'base64');
     }
 
     const end = Date.now();
@@ -209,18 +138,12 @@ export class FileManagerService {
     const metadataPath = this.getFilePath(uuid, 'metadata');
 
     // Read encrypted file as base64
-    let encryptedFile: Buffer, encryptedMetadata: Buffer;
-    if (Platform.OS === 'web') {
-      const fileBase64 = new TextDecoder().decode(await webReadFile(`${uuid}.enc`));
-      encryptedFile = Buffer.from(fileBase64, 'base64');
-      const metadataBase64 = new TextDecoder().decode(await webReadFile(`${uuid}.metadata.enc`));
-      encryptedMetadata = Buffer.from(metadataBase64, 'base64');
-    } else {
-      const fileBase64 = await RNFS.readFile(filePath, 'base64');
-      encryptedFile = Buffer.from(fileBase64, 'base64');
-      const metadataBase64 = await RNFS.readFile(metadataPath, 'base64');
-      encryptedMetadata = Buffer.from(metadataBase64, 'base64');
-    }
+    const fileBase64 = await RNFS.readFile(filePath, 'base64');
+    const encryptedFile = Buffer.from(fileBase64, 'base64');
+
+    // Read encrypted metadata as base64
+    const metadataBase64 = await RNFS.readFile(metadataPath, 'base64');
+    const encryptedMetadata = Buffer.from(metadataBase64, 'base64');
 
     // Decrypt and return
     const result = await EncryptionUtils.decryptFile(
@@ -241,12 +164,7 @@ export class FileManagerService {
     const metadataPath = this.getFilePath(uuid, 'metadata');
     try {
       // Read encrypted metadata as base64
-      let metadataBase64: string;
-      if (Platform.OS === 'web') {
-        metadataBase64 = new TextDecoder().decode(await webReadFile(`${uuid}.metadata.enc`));
-      } else {
-        metadataBase64 = await RNFS.readFile(metadataPath, 'base64');
-      }
+      const metadataBase64 = await RNFS.readFile(metadataPath, 'base64');
       if (!metadataBase64) {
         throw new Error('metadataBase64 is empty');
       }
@@ -292,63 +210,38 @@ export class FileManagerService {
     const start = Date.now();
     this.checkKey(key, 'listEncryptedFiles');
     try {
-      let encryptedFiles: EncryptedFile[] = [];
-      if (Platform.OS === 'web') {
-        const dir = await getWebDirectoryHandle();
-        for await (const entry of dir.values()) {
-          if (entry.kind === 'file' && entry.name.endsWith('.metadata.enc')) {
-            const uuid = entry.name.replace('.metadata.enc', '');
-            try {
-              const metadata = await this.loadFileMetadata(uuid, key);
-              const filePath = `${uuid}.enc`;
-              const metadataPath = `${uuid}.metadata.enc`;
-              const previewPath = `${uuid}.preview.enc`;
-              // Check if preview exists
-              let previewExists = false;
-              try {
-                await dir.getFileHandle(previewPath);
-                previewExists = true;
-              } catch {}
-              encryptedFiles.push({
-                uuid,
-                metadata,
-                filePath,
-                metadataPath,
-                previewPath: previewExists ? previewPath : undefined,
-                isEncrypted: true
-              });
-            } catch (error) {
-              console.warn('Failed to load metadata for', uuid, error);
-            }
-          }
-        }
-      } else {
-        const files = await RNFS.readDir(this.documentsPath);
-        const metadataFiles = files.filter(file => file.name.endsWith('.metadata.enc'));
-        for (const metadataFile of metadataFiles) {
-          const uuid = metadataFile.name.replace('.metadata.enc', '');
-          try {
-            const metadata = await this.loadFileMetadata(uuid, key);
-            const filePath = this.getFilePath(uuid, 'file');
-            const metadataPath = this.getFilePath(uuid, 'metadata');
-            const previewPath = this.getFilePath(uuid, 'preview');
-            // Check if preview exists
-            const previewExists = await RNFS.exists(previewPath);
-            encryptedFiles.push({
-              uuid,
-              metadata,
-              filePath,
-              metadataPath,
-              previewPath: previewExists ? previewPath : undefined,
-              isEncrypted: true
-            });
-          } catch (error) {
-            console.warn('Failed to load metadata for', uuid, error);
-          }
+      const files = await RNFS.readDir(this.documentsPath);
+      const metadataFiles = files.filter(file => file.name.endsWith('.metadata.enc'));
+      
+      const encryptedFiles: EncryptedFile[] = [];
+      
+      for (const metadataFile of metadataFiles) {
+        const uuid = metadataFile.name.replace('.metadata.enc', '');
+        
+        try {
+          const metadata = await this.loadFileMetadata(uuid, key);
+          
+          const filePath = this.getFilePath(uuid, 'file');
+          const metadataPath = this.getFilePath(uuid, 'metadata');
+          const previewPath = this.getFilePath(uuid, 'preview');
+          
+          // Check if preview exists
+          const previewExists = await RNFS.exists(previewPath);
+          
+          encryptedFiles.push({
+            uuid,
+            metadata,
+            filePath,
+            metadataPath,
+            previewPath: previewExists ? previewPath : undefined,
+            isEncrypted: true
+          });
+        } catch (error) {
+          console.warn('Failed to load metadata for', uuid, error);
         }
       }
-      const end = Date.now();
-      console.log('[FileManagerService] listEncryptedFiles: END', { count: encryptedFiles.length, durationMs: end - start, timestamp: end });
+    const end = Date.now();
+    console.log('[FileManagerService] listEncryptedFiles: END', { count: encryptedFiles.length, durationMs: end - start, timestamp: end });
       return encryptedFiles.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
     } catch (error) {
       console.error('Failed to list encrypted files:', error);
@@ -366,23 +259,21 @@ export class FileManagerService {
       const previewPath = this.getFilePath(uuid, 'preview');
 
       // Delete main file
-      if (Platform.OS === 'web') {
-        await webDeleteFile(`${uuid}.enc`);
-        await webDeleteFile(`${uuid}.metadata.enc`);
-        await webDeleteFile(`${uuid}.preview.enc`);
-        return true;
-      } else {
-        if (await RNFS.exists(filePath)) {
-          await RNFS.unlink(filePath);
-        }
-        if (await RNFS.exists(metadataPath)) {
-          await RNFS.unlink(metadataPath);
-        }
-        if (await RNFS.exists(previewPath)) {
-          await RNFS.unlink(previewPath);
-        }
-        return true;
+      if (await RNFS.exists(filePath)) {
+        await RNFS.unlink(filePath);
       }
+
+      // Delete metadata
+      if (await RNFS.exists(metadataPath)) {
+        await RNFS.unlink(metadataPath);
+      }
+
+      // Delete preview if exists
+      if (await RNFS.exists(previewPath)) {
+        await RNFS.unlink(previewPath);
+      }
+
+      return true;
     } catch (error) {
       console.error('Failed to delete encrypted file:', error);
       return false;
@@ -393,44 +284,28 @@ export class FileManagerService {
    * Deletes all encrypted files (of the user's key) in the app's document directory
    */
   static async deleteAllFiles(derivedKey: Uint8Array): Promise<number> {
+    const files = await RNFS.readDir(this.documentsPath);
+    const metadataFiles = files.filter(file => file.name.endsWith('.metadata.enc'));
     let deletedCount = 0;
-    if (Platform.OS === 'web') {
-      const dir = await getWebDirectoryHandle();
-      for await (const entry of dir.values()) {
-        if (entry.kind === 'file' && entry.name.endsWith('.metadata.enc')) {
-          const uuid = entry.name.replace('.metadata.enc', '');
-          try {
-            await this.loadFileMetadata(uuid, derivedKey);
-            await webDeleteFile(`${uuid}.enc`);
-            await webDeleteFile(`${uuid}.metadata.enc`);
-            await webDeleteFile(`${uuid}.preview.enc`);
-            deletedCount++;
-          } catch (e) {
-            continue;
-          }
-        }
+    for (const metadataFile of metadataFiles) {
+      const uuid = metadataFile.name.replace('.metadata.enc', '');
+      try {
+        // Try to decrypt metadata
+        await this.loadFileMetadata(uuid, derivedKey);
+        // If successful, delete the triplet
+        const filePath = this.getFilePath(uuid, 'file');
+        const metadataPath = this.getFilePath(uuid, 'metadata');
+        const previewPath = this.getFilePath(uuid, 'preview');
+        if (await RNFS.exists(filePath)) await RNFS.unlink(filePath);
+        if (await RNFS.exists(metadataPath)) await RNFS.unlink(metadataPath);
+        if (await RNFS.exists(previewPath)) await RNFS.unlink(previewPath);
+        deletedCount++;
+      } catch (e) {
+        // Could not decrypt metadata, skip
+        continue;
       }
-      return deletedCount;
-    } else {
-      const files = await RNFS.readDir(this.documentsPath);
-      const metadataFiles = files.filter(file => file.name.endsWith('.metadata.enc'));
-      for (const metadataFile of metadataFiles) {
-        const uuid = metadataFile.name.replace('.metadata.enc', '');
-        try {
-          await this.loadFileMetadata(uuid, derivedKey);
-          const filePath = this.getFilePath(uuid, 'file');
-          const metadataPath = this.getFilePath(uuid, 'metadata');
-          const previewPath = this.getFilePath(uuid, 'preview');
-          if (await RNFS.exists(filePath)) await RNFS.unlink(filePath);
-          if (await RNFS.exists(metadataPath)) await RNFS.unlink(metadataPath);
-          if (await RNFS.exists(previewPath)) await RNFS.unlink(previewPath);
-          deletedCount++;
-        } catch (e) {
-          continue;
-        }
-      }
-      return deletedCount;
     }
+    return deletedCount;
   }
 
   /**
@@ -440,20 +315,14 @@ export class FileManagerService {
     const start = Date.now();
     this.checkKey(key, 'getFilePreview');
     const previewPath = this.getFilePath(uuid, 'preview');
+    
     try {
-      let previewBase64: string;
-      if (Platform.OS === 'web') {
-        try {
-          previewBase64 = new TextDecoder().decode(await webReadFile(`${uuid}.preview.enc`));
-        } catch {
-          return null;
-        }
-      } else {
-        if (!(await RNFS.exists(previewPath))) {
-          return null;
-        }
-        previewBase64 = await RNFS.readFile(previewPath, 'base64');
+      if (!(await RNFS.exists(previewPath))) {
+        return null;
       }
+      
+      // Read encrypted preview as base64
+      const previewBase64 = await RNFS.readFile(previewPath, 'base64');
       const encryptedPreview = Buffer.from(previewBase64, 'base64');
       const previewBuffer = await EncryptionUtils.decryptData(new Uint8Array(encryptedPreview), key);
       const end = Date.now();

@@ -1,19 +1,27 @@
-import { FileManagerService } from '../../utils/FileManagerService';
 // audio file renderer component
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-
-// native implementation
 import Sound from 'react-native-sound';
-function AudioFileNative(props: {
-  fileData: Uint8Array;
-  mimeType: string;
-  fileName: string;
-  onDelete?: () => void;
-  onClose?: () => void;
-}) {
-  const { fileData, mimeType, fileName, onDelete, onClose } = props;
+import RNFS from 'react-native-fs';
+
+// props for audio file renderer
+interface AudioFileProps {
+  fileData: Uint8Array; // audio data as bytes
+  mimeType: string; // mime type of audio
+  fileName?: string; // name of audio file
+  onClose?: () => void; // callback for closing
+  onDelete?: () => void; // callback for delete
+}
+
+// audio file renderer
+const AudioFile: React.FC<AudioFileProps> = ({ 
+  fileData, 
+  mimeType, 
+  fileName = 'audio.mp3',
+  onClose, 
+  onDelete 
+}) => {
   const [sound, setSound] = useState<Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -26,50 +34,68 @@ function AudioFileNative(props: {
     return () => {
       cleanup();
     };
-    // eslint-disable-next-line
   }, [fileData]);
 
+  // initialize audio playback from fileData
   const initializeAudio = async () => {
     try {
       Sound.setCategory('Playback');
-      const tempPath = await FileManagerService.createTempFile(fileData, fileName);
+
+      // create a temporary file for the audio data
+      const tempPath = `${RNFS.CachesDirectoryPath}/${Date.now()}_${fileName}`;
+
+      // convert Uint8Array to base64 and write to temp file
+      const base64String = btoa(String.fromCharCode(...fileData));
+      await RNFS.writeFile(tempPath, base64String, 'base64');
+
       setTempFilePath(tempPath);
+
+      // create sound instance
       const soundInstance = new Sound(tempPath, '', (error) => {
         if (error) {
           console.error('failed to load audio:', error);
           Alert.alert('error', 'failed to load audio file');
           return;
         }
+
         setSound(soundInstance);
         setDuration(soundInstance.getDuration());
       });
+
     } catch (error) {
       console.error('error initializing audio:', error);
       Alert.alert('error', 'failed to initialize audio');
     }
   };
 
+  // cleanup temp file and sound instance
   const cleanup = async () => {
     if (sound) {
       sound.release();
     }
     if (tempFilePath) {
       try {
-        await FileManagerService.deleteTempFile(tempFilePath);
-      } catch {}
+        await RNFS.unlink(tempFilePath);
+      } catch (error) {
+        console.log('error cleaning up temp file:', error);
+      }
     }
   };
 
   const togglePlayPause = () => {
     if (!sound) return;
+
     if (isPlaying) {
       sound.pause();
       setIsPlaying(false);
       setIsPaused(true);
     } else {
       sound.play((success) => {
-        setIsPlaying(false);
-        setIsPaused(false);
+        if (success) {
+          setIsPlaying(false);
+          setIsPaused(false);
+          setCurrentTime(0);
+        }
       });
       setIsPlaying(true);
       setIsPaused(false);
@@ -78,11 +104,11 @@ function AudioFileNative(props: {
 
   const stopPlayback = () => {
     if (!sound) return;
-    sound.stop(() => {
-      setIsPlaying(false);
-      setIsPaused(false);
-      setCurrentTime(0);
-    });
+
+    sound.stop();
+    setIsPlaying(false);
+    setIsPaused(false);
+    setCurrentTime(0);
   };
 
   const formatTime = (timeInSeconds: number) => {
@@ -155,6 +181,7 @@ function AudioFileNative(props: {
               color="#FFF" 
             />
           </TouchableOpacity>
+
           <TouchableOpacity 
             onPress={stopPlayback} 
             style={styles.controlButton}
@@ -170,9 +197,8 @@ function AudioFileNative(props: {
       </View>
     </View>
   );
-}
+};
 
-// Styles for native implementation
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -259,106 +285,4 @@ const styles = StyleSheet.create({
   },
 });
 
-// Web implementation
-function AudioFileWeb(props: {
-  fileData: Uint8Array;
-  mimeType: string;
-  fileName: string;
-  onDelete?: () => void;
-  onClose?: () => void;
-}) {
-  const { fileData, mimeType, fileName, onDelete, onClose } = props;
-  const [audio, setAudio] = React.useState<any>(null);
-  const [isPlaying, setIsPlaying] = React.useState(false);
-  const [duration, setDuration] = React.useState(0);
-  const [currentTime, setCurrentTime] = React.useState(0);
-
-  React.useEffect(() => {
-    const base64String = btoa(String.fromCharCode(...fileData));
-    const dataUri = `data:${mimeType};base64,${base64String}`;
-    const win: any = typeof globalThis !== 'undefined' ? globalThis : {};
-    const audioEl: any = win.Audio ? new win.Audio(dataUri) : null;
-    setAudio(audioEl);
-    if (audioEl) {
-      audioEl.addEventListener('loadedmetadata', () => setDuration(audioEl.duration));
-      audioEl.addEventListener('timeupdate', () => setCurrentTime(audioEl.currentTime));
-      audioEl.addEventListener('ended', () => setIsPlaying(false));
-    }
-    return () => {
-      if (audioEl) {
-        audioEl.pause();
-      }
-      setAudio(null);
-    };
-  }, [fileData, mimeType]);
-
-  const togglePlayPause = () => {
-    if (!audio) return;
-    if (isPlaying) {
-      (audio as any).pause();
-      setIsPlaying(false);
-    } else {
-      (audio as any).play();
-      setIsPlaying(true);
-    }
-  };
-
-  const stopPlayback = () => {
-    if (!audio) return;
-    (audio as any).pause();
-    (audio as any).currentTime = 0;
-    setIsPlaying(false);
-    setCurrentTime(0);
-  };
-
-  const formatTime = (timeInSeconds: number) => {
-    const minutes = Math.floor(timeInSeconds / 60);
-    const seconds = Math.floor(timeInSeconds % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  const handleDelete = () => {
-    const win: any = typeof globalThis !== 'undefined' ? globalThis : {};
-    if (win.confirm && win.confirm(`Are you sure you want to delete "${fileName}"?`)) {
-      stopPlayback();
-      onDelete && onDelete();
-    }
-  };
-
-  return (
-    <div style={{ padding: 32, background: '#F5F5F5', borderRadius: 12 }}>
-      <div style={{ marginBottom: 16, fontWeight: 'bold' }}>{fileName}</div>
-      <div style={{ marginBottom: 8 }}>Type: {mimeType}</div>
-      <div style={{ marginBottom: 8 }}>{formatTime(currentTime)} / {formatTime(duration)}</div>
-      <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-        <button onClick={togglePlayPause} disabled={!audio} style={{ padding: 8, borderRadius: 8, background: '#4CAF50', color: '#fff' }}>
-          {isPlaying ? 'Pause' : 'Play'}
-        </button>
-        <button onClick={stopPlayback} disabled={!audio} style={{ padding: 8, borderRadius: 8 }}>Stop</button>
-        {onDelete && (
-          <button onClick={handleDelete} style={{ padding: 8, borderRadius: 8, background: '#FF4444', color: '#fff' }}>Delete</button>
-        )}
-        {onClose && (
-          <button onClick={onClose} style={{ padding: 8, borderRadius: 8 }}>Close</button>
-        )}
-      </div>
-      <div style={{ color: '#999' }}>Size: {(fileData.length / 1024).toFixed(1)} KB</div>
-    </div>
-  );
-}
-
-import { Platform } from 'react-native';
-export const AudioFile = (props: {
-  fileData: Uint8Array;
-  mimeType: string;
-  fileName: string;
-  onDelete?: () => void;
-  onClose?: () => void;
-}) => {
-  if (Platform.OS === 'web') {
-    return <AudioFileWeb {...props} />;
-  }
-  return <AudioFileNative {...props} />;
-};
-
-
+export default AudioFile;

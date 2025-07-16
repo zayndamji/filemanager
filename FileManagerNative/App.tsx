@@ -12,7 +12,6 @@ import { FileProvider } from './src/context/FileContext';
 import { PasswordProvider } from './src/context/PasswordContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { ThemeProvider } from './src/theme';
-import { StorageProvider } from './src/context/StorageContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 function App() {
@@ -25,16 +24,14 @@ function App() {
   return (
     <ThemeProvider>
       <SafeAreaProvider>
-        <StorageProvider>
-          <PasswordProvider>
-            <FileProvider>
-              <NavigationContainer>
-                <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-                <AppNavigator />
-              </NavigationContainer>
-            </FileProvider>
-          </PasswordProvider>
-        </StorageProvider>
+        <PasswordProvider>
+          <FileProvider>
+            <NavigationContainer>
+              <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+              <AppNavigator />
+            </NavigationContainer>
+          </FileProvider>
+        </PasswordProvider>
       </SafeAreaProvider>
     </ThemeProvider>
   );

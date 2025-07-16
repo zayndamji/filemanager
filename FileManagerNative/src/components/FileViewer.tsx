@@ -40,7 +40,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 // file type renderers
 import ImageFile from './FileTypes/ImageFile';
 import TextFile from './FileTypes/TextFile';
-import { AudioFile } from './FileTypes/AudioFile';
+import AudioFile from './FileTypes/AudioFile';
 import PDFFile from './FileTypes/PDFFile';
 import VideoFile from './FileTypes/VideoFile';
 import { FileMetadata, FileManagerService } from '../utils/FileManagerService';

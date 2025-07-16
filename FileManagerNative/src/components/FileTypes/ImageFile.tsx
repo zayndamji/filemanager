@@ -1,6 +1,6 @@
 // image file renderer component
 import React from 'react';
-import { Platform, View, StyleSheet, Dimensions, ActivityIndicator, Text } from 'react-native';
+import { View, StyleSheet, Dimensions, ActivityIndicator, Text } from 'react-native';
 import { Image } from 'react-native';
 
 // props for image file renderer
@@ -13,14 +13,21 @@ interface ImageFileProps {
 
 const { width, height } = Dimensions.get('window');
 
-// Native implementation
-const ImageFileNative: React.FC<ImageFileProps> = ({ fileData, mimeType, isPreview = false, style }) => {
+// image file renderer
+const ImageFile: React.FC<ImageFileProps> = ({ fileData, mimeType, isPreview = false, style }) => {
   const [loading, setLoading] = React.useState(true);
+
+  // log start of image render
+  console.log('[ImageFile] rendering image preview', { mimeType, isPreview, fileDataLength: fileData?.byteLength });
+
+  // compress preview if isPreview
   let dataUri: string;
   if (isPreview) {
+    // reduce preview size for faster rendering
     let uint8 = fileData instanceof Uint8Array ? fileData : new Uint8Array(fileData);
     if (uint8.length > 20000) {
-      uint8 = uint8.slice(0, 20000);
+      uint8 = uint8.slice(0, 20000); // very rough downsample
+      console.log('[ImageFile] downsampled preview to 20k bytes');
     }
     const base64String = Buffer.from(uint8).toString('base64');
     dataUri = `data:${mimeType};base64,${base64String}`;
@@ -29,55 +36,31 @@ const ImageFileNative: React.FC<ImageFileProps> = ({ fileData, mimeType, isPrevi
     const base64String = Buffer.from(uint8).toString('base64');
     dataUri = `data:${mimeType};base64,${base64String}`;
   }
+
+  // fallback: never return a string/number, always a valid react element
   if (!dataUri || typeof dataUri !== 'string') {
+    console.error('[ImageFile] invalid dataUri, returning fallback');
     return (
       <View style={styles.container}>
         <Text style={{ color: 'red', padding: 16 }}>image could not be rendered (invalid dataUri)</Text>
       </View>
     );
   }
+
   return (
     <View style={[styles.container, style]}>
       <Image
         source={{ uri: dataUri }}
         style={styles.image}
         resizeMode="contain"
-        onLoadEnd={() => setLoading(false)}
+        onLoadEnd={() => {
+          setLoading(false);
+          console.log('[ImageFile] image loaded', { mimeType });
+        }}
       />
-      {loading ? <ActivityIndicator style={styles.loader} size="small" color="#888" /> : null}
+      {loading && <ActivityIndicator style={styles.loader} size="small" color="#888" />}
     </View>
   );
-};
-
-// Web implementation
-const ImageFileWeb: React.FC<ImageFileProps> = ({ fileData, mimeType, isPreview = false, style }) => {
-  let dataUri: string;
-  if (isPreview) {
-    let uint8 = fileData instanceof Uint8Array ? fileData : new Uint8Array(fileData);
-    if (uint8.length > 20000) {
-      uint8 = uint8.slice(0, 20000);
-    }
-    const base64String = Buffer.from(uint8).toString('base64');
-    dataUri = `data:${mimeType};base64,${base64String}`;
-  } else {
-    const uint8 = fileData instanceof Uint8Array ? fileData : new Uint8Array(fileData);
-    const base64String = Buffer.from(uint8).toString('base64');
-    dataUri = `data:${mimeType};base64,${base64String}`;
-  }
-  if (!dataUri || typeof dataUri !== 'string') {
-    return <div style={{ color: 'red', padding: 16 }}>image could not be rendered (invalid dataUri)</div>;
-  }
-  return (
-    <div style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', borderRadius: 12, padding: 16 }}>
-      <img src={dataUri} alt="image" style={{ maxWidth: '100%', maxHeight: 320, borderRadius: 8 }} />
-    </div>
-  );
-};
-
-// Platform switch
-const ImageFile: React.FC<ImageFileProps> = (props) => {
-  if (Platform.OS === 'web') return <ImageFileWeb {...props} />;
-  return <ImageFileNative {...props} />;
 };
 
 // styles for image file renderer

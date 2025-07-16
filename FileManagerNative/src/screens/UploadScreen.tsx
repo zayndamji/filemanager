@@ -15,8 +15,8 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { useFileContext } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
 import { FileManagerService } from '../utils/FileManagerService';
-import * as FileSystem from '../utils/FileSystem';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import RNFS from 'react-native-fs';
 import { ThemeContext } from '../theme';
 import MetadataEditor from '../components/MetadataEditor/MetadataEditor';
 import { useMetadataEditor } from '../components/MetadataEditor/useMetadataEditor';
@@ -397,24 +397,32 @@ const UploadScreen = () => {
     setUploading(true);
     try {
       for (const file of pendingFiles) {
-        // Read file data using FileSystem utility (cross-platform)
-        let fileData: Uint8Array;
-        if (file.uri) {
-          // On native, uri is a file path; on web, it may be a blob URL or similar
-          // Use FileSystem.readFile to get Uint8Array (assume base64 for binary files)
-          const base64 = await FileSystem.readFile(file.uri, 'base64');
-          fileData = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-        } else {
-          fileData = new Uint8Array();
-        }
+        // Read file data
+        const fileData = await RNFS.readFile(file.uri, 'base64');
+        const uint8Array = new Uint8Array(
+          atob(fileData)
+            .split('')
+            .map(char => char.charCodeAt(0))
+        );
         await FileManagerService.saveEncryptedFile(
-          fileData,
+          uint8Array,
           file.name,
           file.type,
           derivedKey,
           metaEditor.folderPath.split('/').filter(Boolean),
           metaEditor.tags
         );
+        // Attempt to delete the original file if it is in a tmp or cache directory
+        try {
+          if (file.uri.includes('/tmp/') || file.uri.includes('/cache/')) {
+            const exists = await RNFS.exists(file.uri);
+            if (exists) {
+              await RNFS.unlink(file.uri);
+            }
+          }
+        } catch (delErr) {
+          // Ignore deletion errors
+        }
       }
       Alert.alert('Success', `Uploaded and encrypted ${pendingFiles.length} file(s) successfully`);
       setPendingFiles([]);

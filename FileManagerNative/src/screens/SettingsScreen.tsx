@@ -1,4 +1,3 @@
-declare const document: any;
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useFileContext } from '../context/FileContext';
@@ -7,9 +6,10 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { FileManagerService } from '../utils/FileManagerService';
 import { ThemeContext, darkTheme, lightTheme } from '../theme';
-import JSZip from 'jszip';
-import { Platform } from 'react-native';
-import * as FileSystem from '../utils/FileSystem';
+import RNFS from 'react-native-fs';
+import { zip, unzip } from 'react-native-zip-archive';
+import Share from 'react-native-share';
+import DocumentPicker from 'react-native-document-picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 type RootStackParamList = {
@@ -45,76 +45,65 @@ const SettingsScreen = () => {
     }
     setExporting(true);
     try {
-      console.log('[SettingsScreen] Export: Starting export process');
-      // Use cross-platform FileSystem utility for export
-      try {
-        // Explicitly type files as array of file objects with name and path
-        const files: { name: string; path?: string }[] = await FileSystem.listFiles();
-        console.log('[SettingsScreen] Export: Files listed', files);
-        // Only include files with decryptable .metadata.enc
-        const filesToExport: { name: string; data: string }[] = [];
-        for (const file of files) {
-          const name = file.name;
-          if (typeof name === 'string' && name.endsWith('.metadata.enc')) {
-            try {
-              const uuid = name.replace('.metadata.enc', '');
-              await FileManagerService.loadFileMetadata(uuid, derivedKey);
-              console.log('[SettingsScreen] Export: Decryptable metadata', name);
-              filesToExport.push({ name, data: await FileSystem.readFile(file.path || name, 'base64') });
-              for (const ext of ['.enc', '.preview.enc']) {
-                const relatedName = uuid + ext;
-                const relatedFile = files.find((f: { name: string }) => f.name === relatedName);
-                if (relatedFile) {
-                  console.log('[SettingsScreen] Export: Adding related file', relatedName);
-                  filesToExport.push({ name: relatedName, data: await FileSystem.readFile(relatedFile.path || relatedName, 'base64') });
-                }
+      // Find all .enc files and .metadata.enc files
+      const filesDir = RNFS.DocumentDirectoryPath;
+      const files = await RNFS.readDir(filesDir);
+      const encFiles = files.filter(f => f.name.endsWith('.enc'));
+      // Only include files with decryptable .metadata.enc
+      const filesToExport = [];
+      for (const file of encFiles) {
+        if (file.name.endsWith('.metadata.enc')) {
+          // Only check metadata.enc files
+          const ok = await isDecryptable(file.path, derivedKey);
+          if (ok) {
+            // Add metadata.enc and its corresponding file
+            const baseName = file.name.replace('.metadata.enc', '');
+            const filePath = `${filesDir}/${baseName}.enc`;
+            const previewPath = `${filesDir}/${baseName}.preview.enc`;
+            // Check if file exists
+            const exists = await RNFS.exists(filePath);
+            if (exists) {
+              filesToExport.push(file.path);
+              filesToExport.push(filePath);
+              // If .preview.enc exists, add it
+              const previewExists = await RNFS.exists(previewPath);
+              if (previewExists) {
+                filesToExport.push(previewPath);
               }
-            } catch (e) {
-              console.warn('[SettingsScreen] Export: Skipping undecryptable metadata', name, e);
             }
           }
         }
-        console.log('[SettingsScreen] Export: Files to export', filesToExport.map(f => f.name));
-        if (filesToExport.length === 0) {
-          Alert.alert('No files', 'No decryptable files found.');
-          setExporting(false);
-          return;
-        }
-        // Create ZIP
-        const zip = new JSZip();
-        for (const { name, data } of filesToExport) {
-          zip.file(name, data, { base64: true });
-        }
-        console.log('[SettingsScreen] Export: Creating ZIP...');
-        if (Platform.OS === 'web') {
-          const content = await zip.generateAsync({ type: 'blob' });
-          console.log('[SettingsScreen] Export: ZIP created (web)');
-          const url = URL.createObjectURL(content);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'exported_files.zip';
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(() => {
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          }, 100);
-          Alert.alert('Export Complete', 'ZIP file downloaded.');
-        } else {
-          // Native: generate base64 and write directly
-          const content = await zip.generateAsync({ type: 'base64' });
-          console.log('[SettingsScreen] Export: ZIP created (native, base64)');
-          const filesDir = await FileSystem.pickDirectory();
-          const zipPath = `${filesDir}/exported_files.zip`;
-          await FileSystem.writeFile(zipPath, content, 'base64');
-          Alert.alert('Export Complete', `ZIP file saved to ${zipPath}`);
-        }
-      } catch (err) {
-        console.error('[SettingsScreen] Export: Error', err);
-        Alert.alert('Error', 'Export failed.');
+      }
+      if (filesToExport.length === 0) {
+        Alert.alert('No files', 'No decryptable files found.');
+        setExporting(false);
+        return;
+      }
+      // Create temp export folder
+      const exportDir = `${filesDir}/export_temp`;
+      await RNFS.mkdir(exportDir);
+      // Copy files to export folder
+      for (const src of filesToExport) {
+        const dest = `${exportDir}/${src.split('/').pop()}`;
+        await RNFS.copyFile(src, dest);
+      }
+      // Zip the export folder
+      const zipPath = `${filesDir}/exported_files.zip`;
+      await zip(exportDir, zipPath);
+      // Remove temp folder
+      await RNFS.unlink(exportDir);
+
+      // Open share sheet for ZIP file
+      try {
+        await Share.open({
+          url: 'file://' + zipPath,
+          type: 'application/zip',
+          failOnCancel: false,
+        });
+      } catch (e) {
+        Alert.alert('Export Cancelled', 'No destination selected.');
       }
     } catch (err) {
-      console.error('[SettingsScreen] Export: Outer error', err);
       Alert.alert('Error', 'Export failed.');
     } finally {
       setExporting(false);
@@ -127,53 +116,116 @@ const SettingsScreen = () => {
       Alert.alert('Error', 'No password set.');
       return;
     }
-    // Use cross-platform FileSystem utility for import
     try {
-      console.log('[SettingsScreen] Import: Starting import process');
-      // Prompt user for ZIP file (web: file input, native: file picker)
-      let zipData: Uint8Array | null = null;
-      if (Platform.OS === 'web') {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.zip,application/zip';
-        zipData = await new Promise<Uint8Array | null>((resolve) => {
-          input.onchange = async (e: any) => {
-            const file = e.target.files[0];
-            if (!file) return resolve(null);
-            const arrayBuffer = await file.arrayBuffer();
-            resolve(new Uint8Array(arrayBuffer));
-          };
-          input.click();
-        });
-        if (!zipData) {
-          Alert.alert('Import Cancelled', 'No ZIP file selected.');
-          return;
-        }
-        console.log('[SettingsScreen] Import: ZIP file selected, size:', zipData.length);
-      } else {
-        // Use FileSystem.pickDirectory to get path, then prompt for file (simulate DocumentPicker)
-        // For simplicity, assume user provides path to ZIP file (could be improved)
-        Alert.alert('Import', 'Please place your ZIP file in the app storage and enter the filename.');
-        return; // Implement native picker as needed
+      // Pick ZIP file
+      const res = await DocumentPicker.pick({
+        type: [DocumentPicker.types.zip],
+      });
+      if (!res || !res[0] || !res[0].uri) {
+        Alert.alert('Import Cancelled', 'No ZIP file selected.');
+        return;
       }
-      // Unzip and write files
-      const zip = await JSZip.loadAsync(zipData!);
-      console.log('[SettingsScreen] Import: ZIP loaded, files:', Object.keys(zip.files));
+      const zipUri = res[0].uri.replace('file://', '');
+      const filesDir = RNFS.DocumentDirectoryPath;
+      const importDir = `${filesDir}/import_temp`;
+      await RNFS.mkdir(importDir);
+      // Unzip
+      await unzip(zipUri, importDir);
+      // List all files in import temp dir
+      const importFiles = await RNFS.readDir(importDir);
+      // Find all .metadata.enc files
+      const metadataFiles = importFiles.filter(f => f.name.endsWith('.metadata.enc'));
       let importedCount = 0;
       let importedSize = 0;
-      for (const [name, entry] of Object.entries(zip.files)) {
-        if (entry.dir) continue;
-        if (!name.endsWith('.enc') && !name.endsWith('.metadata.enc') && !name.endsWith('.preview.enc')) continue;
-        const fileData = await entry.async('uint8array');
-        await FileSystem.writeFile(name, fileData);
-        importedCount++;
-        importedSize += fileData.length;
-        console.log('[SettingsScreen] Import: Wrote file', name, 'size', fileData.length);
+      for (const file of metadataFiles) {
+        const baseName = file.name.replace('.metadata.enc', '');
+        const encPath = `${importDir}/${baseName}.enc`;
+        const metaPath = file.path;
+        const previewPath = `${importDir}/${baseName}.preview.enc`;
+        // Destination paths
+        const destEnc = `${filesDir}/${baseName}.enc`;
+        const destMeta = `${filesDir}/${baseName}.metadata.enc`;
+        const destPreview = `${filesDir}/${baseName}.preview.enc`;
+
+        // Check existence in destination
+        const encExists = await RNFS.exists(destEnc);
+        const metaExists = await RNFS.exists(destMeta);
+        const destPreviewExists = await RNFS.exists(destPreview);
+        // Check if preview exists in import temp
+        const previewExistsInImport = await RNFS.exists(previewPath);
+
+        // Only skip if all destination files exist (and preview only if present in import)
+        if (encExists && metaExists && (!previewExistsInImport || destPreviewExists)) {
+          console.log(`[Import] All files already exist, skipping: UUID=${baseName}, encPath=${destEnc}`);
+          continue;
+        }
+
+        let copied = false;
+        // Copy missing .enc
+        if (!encExists) {
+          const encSourceExists = await RNFS.exists(encPath);
+          if (encSourceExists) {
+            try {
+              await RNFS.copyFile(encPath, destEnc);
+              importedSize += (await RNFS.stat(encPath)).size;
+              console.log(`[Import] Copied: UUID=${baseName}, encPath=${destEnc}`);
+              copied = true;
+            } catch (err) {
+              console.error(`[Import] Failed to copy .enc: ${encPath} -> ${destEnc}`);
+            }
+          } else {
+            console.error(`[Import] Source .enc missing: ${encPath}`);
+          }
+        } else {
+          console.log(`[Import] .enc already exists, skipping: UUID=${baseName}, encPath=${destEnc}`);
+        }
+        // Copy missing .metadata.enc
+        if (!metaExists) {
+          const metaSourceExists = await RNFS.exists(metaPath);
+          if (metaSourceExists) {
+            try {
+              await RNFS.copyFile(metaPath, destMeta);
+              importedSize += (await RNFS.stat(metaPath)).size;
+              // No logging for metadata file path or contents
+              copied = true;
+            } catch (err) {
+              console.error(`[Import] Failed to copy .metadata.enc for UUID=${baseName}`);
+            }
+          } else {
+            console.error(`[Import] Source .metadata.enc missing for UUID=${baseName}`);
+          }
+        } else {
+          // No logging for metadata file path or contents
+        }
+        // Copy missing .preview.enc if present in import
+        if (previewExistsInImport) {
+          if (!destPreviewExists) {
+            try {
+              await RNFS.copyFile(previewPath, destPreview);
+              importedSize += (await RNFS.stat(previewPath)).size;
+              console.log(`[Import] Copied: ${destPreview}`);
+              copied = true;
+            } catch (err) {
+              console.error(`[Import] Failed to copy .preview.enc: ${previewPath} -> ${destPreview}`, err);
+            }
+          } else {
+            console.log(`[Import] .preview.enc already exists, skipping: ${destPreview}`);
+          }
+        }
+        if (copied) importedCount++;
       }
+      // Clean up temp folder
+      await RNFS.unlink(importDir);
+      // Delete the imported ZIP file
+      try {
+        await RNFS.unlink(zipUri);
+      } catch (zipDelErr) {
+        // Ignore deletion errors
+      }
+      // Refresh file list
       await refreshFileList();
       Alert.alert('Import Complete', `${importedCount} file${importedCount === 1 ? '' : 's'} imported. Total size: ${(importedSize / (1024 * 1024)).toFixed(2)} MB.`);
     } catch (err) {
-      console.error('[SettingsScreen] Import: Error', err);
       Alert.alert('Error', 'Import failed.');
     }
   };
