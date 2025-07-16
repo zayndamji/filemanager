@@ -33,7 +33,7 @@ import { Component, ErrorInfo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import MetadataEditor from './MetadataEditor/MetadataEditor';
 import { useMetadataEditor } from './MetadataEditor/useMetadataEditor';
-import { darkTheme } from '../theme';
+import { darkTheme, ThemeContext } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
@@ -127,12 +127,24 @@ const FileViewer: React.FC<FileViewerProps> = ({
       onDownload();
     }
   };
+  const { theme } = React.useContext(ThemeContext);
   const renderFileContent = () => {
     const mimeType = metadata.type;
     let rendered;
     if (mimeType.startsWith('image/')) {
       const isPreview = !!(fileData && fileData.byteLength < 100 * 1024);
-      rendered = <ImageFile fileData={fileData} mimeType={mimeType} isPreview={isPreview} />;
+      rendered = (
+        <View style={{
+          backgroundColor: theme.surface,
+          borderRadius: 12,
+          margin: 16,
+          padding: 16,
+          borderWidth: 2,
+          borderColor: theme.border,
+        }}>
+          <ImageFile fileData={fileData} mimeType={mimeType} isPreview={isPreview} style={{ backgroundColor: theme.surface, borderRadius: 8 }} />
+        </View>
+      );
     } else if (mimeType.startsWith('text/') || mimeType === 'application/json') {
       rendered = <TextFile fileData={fileData} />;
     } else if (mimeType.startsWith('audio/')) {
@@ -210,7 +222,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
   return (
     <GlobalErrorBoundary>
       <FileViewerErrorBoundary>
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: theme.background }]}> 
           {/* header section with close, filename, and actions */}
           <View style={[styles.header, { paddingTop: insets.top || 16, minHeight: 56 + (insets.top || 16), flexDirection: 'row', alignItems: 'center' }]}> 
             <Pressable onPress={onClose} style={styles.closeButton} accessibilityLabel="Close">
@@ -234,7 +246,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
           </View>
 
           {/* file content and details section */}
-          <ScrollView style={styles.content} contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+          <ScrollView style={[styles.content, { backgroundColor: theme.background }]} contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
             {renderFileContent()}
 
             {!!showDetails && !editing && (

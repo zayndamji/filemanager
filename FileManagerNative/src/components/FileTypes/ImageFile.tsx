@@ -8,12 +8,13 @@ interface ImageFileProps {
   fileData: Uint8Array | ArrayBuffer; // image data as bytes
   mimeType: string; // mime type of image
   isPreview?: boolean; // whether to render as preview
+  style?: any; // optional style for root View
 }
 
 const { width, height } = Dimensions.get('window');
 
 // image file renderer
-const ImageFile: React.FC<ImageFileProps> = ({ fileData, mimeType, isPreview = false }) => {
+const ImageFile: React.FC<ImageFileProps> = ({ fileData, mimeType, isPreview = false, style }) => {
   const [loading, setLoading] = React.useState(true);
 
   // log start of image render
@@ -47,7 +48,7 @@ const ImageFile: React.FC<ImageFileProps> = ({ fileData, mimeType, isPreview = f
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, style]}>
       <Image
         source={{ uri: dataUri }}
         style={styles.image}
@@ -67,7 +68,7 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'transparent',
   },
 
   image: {
