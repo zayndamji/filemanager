@@ -1,6 +1,7 @@
 import React from 'react';
 import { Platform, View, Text, StyleSheet } from 'react-native';
 import Video from 'react-native-video';
+import { uint8ArrayToBase64 } from '../../utils/Base64Utils';
 
 export interface VideoFileProps {
   fileData: Uint8Array;
@@ -11,7 +12,7 @@ export interface VideoFileProps {
 const VideoFileNative: React.FC<VideoFileProps> = ({ fileData, mimeType, fileName = 'video.mp4' }) => {
   let base64String = '';
   if (fileData && fileData.length > 0) {
-    base64String = Buffer.from(fileData).toString('base64');
+    base64String = uint8ArrayToBase64(fileData);
   }
   const videoUri = base64String ? `data:${mimeType};base64,${base64String}` : undefined;
   return (
@@ -37,7 +38,7 @@ const VideoFileNative: React.FC<VideoFileProps> = ({ fileData, mimeType, fileNam
 const VideoFileWeb: React.FC<VideoFileProps> = ({ fileData, mimeType, fileName = 'video.mp4' }) => {
   let base64String = '';
   if (fileData && fileData.length > 0) {
-    base64String = Buffer.from(fileData).toString('base64');
+    base64String = uint8ArrayToBase64(fileData);
   }
   const videoUri = base64String ? `data:${mimeType};base64,${base64String}` : undefined;
   return (

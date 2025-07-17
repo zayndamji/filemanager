@@ -2,6 +2,7 @@ import { FileManagerService, EncryptedFile } from './FileManagerService';
 import { decryptData, encryptData } from './WebCryptoUtils';
 import * as FileSystem from './FileSystem';
 import { Platform } from 'react-native';
+import { uint8ArrayToBase64 } from './Base64Utils';
 
 // migration utility for encrypted file formats
 export class MigrationUtils {
@@ -74,7 +75,7 @@ export class MigrationUtils {
       const previewData = new Uint8Array(previewBuffer);
       // save the preview using the existing file path structure
       const previewFileName = `${savedFile.uuid}.preview.enc`;
-      const previewBase64 = Buffer.from(await encryptData(previewData, key)).toString('base64');
+      const previewBase64 = uint8ArrayToBase64(await encryptData(previewData, key));
       await FileSystem.writeFile(previewFileName, previewBase64, 'base64');
       savedFile.previewPath = previewFileName;
     }

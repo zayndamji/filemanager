@@ -11,8 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePasswordContext } from '../context/PasswordContext';
-import { useStorageContext } from '../context/StorageContext';
-import { pickDirectory } from '../utils/FileSystem';
+import { pickDirectory, getWebDirectoryHandle } from '../utils/FileSystem';
 import { useNavigation } from '@react-navigation/native';
 import { ThemeContext } from '../theme';
 
@@ -75,7 +74,6 @@ const PasswordScreen = () => {
   const [inputPassword, setInputPassword] = useState('');
   const [inputSalt, setInputSalt] = useState('');
   const { setPassword, salt, setSalt } = usePasswordContext();
-  const { webDirectoryHandle, setWebDirectoryHandle } = useStorageContext();
   const navigation = useNavigation();
   const { theme } = React.useContext(ThemeContext);
 
@@ -95,7 +93,7 @@ const PasswordScreen = () => {
       return;
     }
     // On web, require folder selection
-    if (Platform.OS === 'web' && !webDirectoryHandle) {
+    if (Platform.OS === 'web' && !getWebDirectoryHandle()) {
       Alert.alert('Error', 'Please select a storage folder');
       return;
     }
@@ -106,8 +104,7 @@ const PasswordScreen = () => {
 
   const handlePickFolder = async () => {
     try {
-      const handle = await pickDirectory();
-      setWebDirectoryHandle(handle);
+      await pickDirectory();
     } catch (e) {
       Alert.alert('Error', 'Failed to pick folder: ' + (e as Error).message);
     }
@@ -141,11 +138,11 @@ const PasswordScreen = () => {
           />
           {Platform.OS === 'web' && (
             <TouchableOpacity
-              style={[styles.button, { backgroundColor: webDirectoryHandle ? theme.accent : '#888' }]}
+              style={[styles.button, { backgroundColor: getWebDirectoryHandle() ? theme.accent : '#888' }]}
               onPress={handlePickFolder}
             >
               <Text style={styles.buttonText}>
-                {webDirectoryHandle ? 'Folder Selected' : 'Choose Storage Folder'}
+                {getWebDirectoryHandle() ? 'Folder Selected' : 'Choose Storage Folder'}
               </Text>
             </TouchableOpacity>
           )}

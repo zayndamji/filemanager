@@ -2,8 +2,16 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { sha256 } from '@noble/hashes/sha256';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// Static import for native PBKDF2
-import RNSimpleCrypto from 'react-native-simple-crypto';
+
+// Conditionally import RNSimpleCrypto only on native platforms
+let RNSimpleCrypto: any = null;
+if (Platform.OS !== 'web') {
+  try {
+    RNSimpleCrypto = require('react-native-simple-crypto');
+  } catch (e) {
+    console.warn('Failed to load react-native-simple-crypto:', e);
+  }
+}
 
 // Web-native PBKDF2 using SubtleCrypto
 async function pbkdf2Web(password: string, salt: Uint8Array, iterations: number, keyLen: number, hash: string): Promise<Uint8Array> {
@@ -56,7 +64,7 @@ export function PasswordProvider({ children }: PasswordProviderProps) {
       try {
         const savedSalt = await AsyncStorage.getItem(SALT_KEY);
         if (savedSalt) setSalt(savedSalt);
-        console.log('[PasswordContext] Loaded salt from storage:', savedSalt);
+        console.log('[PasswordContext] Loaded salt from storage.');
       } catch (err) {
         console.error('[PasswordContext] Could not load salt:', err);
       }
@@ -67,7 +75,7 @@ export function PasswordProvider({ children }: PasswordProviderProps) {
   // Persist salt when changed
   React.useEffect(() => {
     if (salt) {
-      console.log('[PasswordContext] Saving salt to storage:', salt);
+      console.log('[PasswordContext] Saving salt to storage.');
       AsyncStorage.setItem(SALT_KEY, salt).catch(err => {
         console.error('[PasswordContext] Could not save salt:', err);
       });
@@ -76,7 +84,7 @@ export function PasswordProvider({ children }: PasswordProviderProps) {
 
   // Derive key when password or salt changes
   React.useEffect(() => {
-    console.log('[PasswordContext] password or salt changed:', { password, salt });
+    console.log('[PasswordContext] password or salt changed.');
     if (!password || !salt) {
       setDerivedKey(null);
       console.log('[PasswordContext] derivedKey set to null (missing password or salt)');
@@ -87,21 +95,28 @@ export function PasswordProvider({ children }: PasswordProviderProps) {
         const encoder = new TextEncoder();
         const saltBytes = encoder.encode(salt);
         let key: Uint8Array;
+        
         if (Platform.OS === 'web') {
           key = await pbkdf2Web(password, saltBytes, 20000, 32, 'SHA-256');
         } else {
           // Use RNSimpleCrypto.PBKDF2.hash for native
-          const keyArray = await RNSimpleCrypto.PBKDF2.hash(
-            password,
-            saltBytes,
-            20000,
-            32,
-            'SHA256'
-          );
-          key = new Uint8Array(keyArray);
+          if (RNSimpleCrypto) {
+            const keyArray = await RNSimpleCrypto.PBKDF2.hash(
+              password,
+              saltBytes,
+              20000,
+              32,
+              'SHA256'
+            );
+            key = new Uint8Array(keyArray);
+          } else {
+            // Fallback to web implementation if RNSimpleCrypto failed to load
+            key = await pbkdf2Web(password, saltBytes, 20000, 32, 'SHA-256');
+          }
         }
+        
         setDerivedKey(key);
-        console.log('[PasswordContext] derivedKey set:', key);
+        console.log('[PasswordContext] derivedKey set.');
       } catch (err) {
         console.error('[PasswordContext] PBKDF2 error:', err);
         setDerivedKey(null);

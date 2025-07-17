@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFileContext } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
 import { FileManagerService, EncryptedFile } from '../utils/FileManagerService';
+import { uint8ArrayToBase64 } from '../utils/Base64Utils';
 import FileViewer from '../components/FileViewer';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { ThemeContext } from '../theme';
@@ -237,7 +238,7 @@ const GalleryScreen = () => {
           imageData = result.fileData;
         }
         if (imageData) {
-          const base64String = Buffer.from(imageData).toString('base64');
+          const base64String = uint8ArrayToBase64(imageData);
           const dataUri = `data:${image.metadata.type};base64,${base64String}`;
           newThumbnails.set(image.uuid, dataUri);
         }

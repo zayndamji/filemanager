@@ -8,10 +8,25 @@ import {
   ScrollView,
   ActivityIndicator,
   TextInput,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DocumentPicker from 'react-native-document-picker';
-import { launchImageLibrary } from 'react-native-image-picker';
+// Conditionally import native-only libraries
+let DocumentPicker: any = null;
+let launchImageLibrary: any = null;
+let RNFS: any = null;
+
+if (Platform.OS !== 'web') {
+  try {
+    DocumentPicker = require('react-native-document-picker').default;
+    const ImagePicker = require('react-native-image-picker');
+    launchImageLibrary = ImagePicker.launchImageLibrary;
+    RNFS = require('react-native-fs');
+  } catch (e) {
+    console.warn('Failed to load native libraries:', e);
+  }
+}
+
 import { useFileContext } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
 import { FileManagerService } from '../utils/FileManagerService';
@@ -307,7 +322,7 @@ const UploadScreen = () => {
   const { refreshFileList, encryptedFiles } = useFileContext();
   const { password, derivedKey } = usePasswordContext();
   const [uploading, setUploading] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<Array<{ uri: string; name: string; type: string }>>([]);
+  const [pendingFiles, setPendingFiles] = useState<Array<{ uri: string; name: string; type: string; size?: number; webFile?: File }>>([]);
   // Use unified metadata editor for folder path and tags
   const metaEditor = useMetadataEditor({
     initialName: '', // not used in upload
@@ -318,6 +333,42 @@ const UploadScreen = () => {
   const styles = getStyles(theme);
 
   const handleDocumentPicker = async () => {
+    // Check if we're on web using multiple detection methods
+    const isWeb = Platform.OS === 'web' || typeof (global as any).window !== 'undefined';
+    
+    if (isWeb) {
+      console.log('[UploadScreen] Using web document picker');
+      // On web, use HTML file input for document selection
+      const win: any = (global as any).window || (global as any);
+      if (win && win.document) {
+        const input = win.document.createElement('input');
+        input.type = 'file';
+        input.multiple = true;
+        input.onchange = (event: any) => {
+          const files = Array.from(event.target.files || []);
+          if (files.length > 0) {
+            const newFiles = files.map((file: any) => ({
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              uri: '', // Will be handled differently on web
+              webFile: file, // Store the actual File object for web
+            }));
+            setPendingFiles(prev => [...prev, ...newFiles]);
+          }
+        };
+        input.click();
+      } else {
+        Alert.alert('Error', 'File picker not available in this environment');
+      }
+      return;
+    }
+
+    if (!DocumentPicker) {
+      Alert.alert('Error', 'Document picker not available on this platform');
+      return;
+    }
+
     try {
       const result = await DocumentPicker.pickSingle({
         type: [DocumentPicker.types.allFiles],
@@ -338,6 +389,48 @@ const UploadScreen = () => {
   };
 
   const handleImagePicker = () => {
+    // Debug log to check platform detection
+    console.log('[UploadScreen] handleImagePicker called, Platform.OS:', Platform.OS);
+    
+    // Check if we're on web using multiple detection methods
+    const isWeb = Platform.OS === 'web' || typeof (global as any).window !== 'undefined';
+    
+    if (isWeb) {
+      console.log('[UploadScreen] Using web file picker');
+      // On web, use HTML file input for image selection
+      const win: any = (global as any).window || (global as any);
+      if (win && win.document) {
+        const input = win.document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.multiple = true;
+        input.onchange = (event: any) => {
+          const files = Array.from(event.target.files || []);
+          if (files.length > 0) {
+            const newFiles = files.map((file: any) => ({
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              uri: '', // Will be handled differently on web
+              webFile: file, // Store the actual File object for web
+            }));
+            setPendingFiles(prev => [...prev, ...newFiles]);
+          }
+        };
+        input.click();
+      } else {
+        Alert.alert('Error', 'File picker not available in this environment');
+      }
+      return;
+    }
+
+    console.log('[UploadScreen] Using native image picker, launchImageLibrary available:', !!launchImageLibrary);
+    
+    if (!launchImageLibrary) {
+      Alert.alert('Error', 'Image picker not available on this platform');
+      return;
+    }
+
     launchImageLibrary(
       {
         mediaType: 'photo',
@@ -345,6 +438,7 @@ const UploadScreen = () => {
         includeBase64: false,
         selectionLimit: 0,
       },
+      // @ts-ignore
       (response) => {
         if (response.didCancel) {
           // User cancelled image picker
@@ -356,8 +450,8 @@ const UploadScreen = () => {
         }
         if (Array.isArray(response.assets) && response.assets.length > 0) {
           setPendingFiles(prev => [
-            ...prev,
-            ...response.assets?.filter(asset => asset && asset.uri)
+            ...prev, // @ts-ignore
+            ...response.assets?.filter(asset => asset && asset.uri) // @ts-ignore
               .map(asset => ({
                 uri: asset.uri!,
                 name: asset.fileName || 'image.jpg',
@@ -370,12 +464,55 @@ const UploadScreen = () => {
   };
 
   const handleVideoPicker = () => {
+    // Debug log to check platform detection
+    console.log('[UploadScreen] handleVideoPicker called, Platform.OS:', Platform.OS);
+    
+    // Check if we're on web using multiple detection methods
+    const isWeb = Platform.OS === 'web' || typeof (global as any).window !== 'undefined';
+    
+    if (isWeb) {
+      console.log('[UploadScreen] Using web video picker');
+      // On web, use HTML file input for video selection
+      const win: any = (global as any).window || (global as any);
+      if (win && win.document) {
+        const input = win.document.createElement('input');
+        input.type = 'file';
+        input.accept = 'video/*';
+        input.multiple = true;
+        input.onchange = (event: any) => {
+          const files = Array.from(event.target.files || []);
+          if (files.length > 0) {
+            const newFiles = files.map((file: any) => ({
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              uri: '', // Will be handled differently on web
+              webFile: file, // Store the actual File object for web
+            }));
+            setPendingFiles(prev => [...prev, ...newFiles]);
+          }
+        };
+        input.click();
+      } else {
+        Alert.alert('Error', 'File picker not available in this environment');
+      }
+      return;
+    }
+
+    console.log('[UploadScreen] Using native video picker, launchImageLibrary available:', !!launchImageLibrary);
+    
+    if (!launchImageLibrary) {
+      Alert.alert('Error', 'Video picker not available on this platform');
+      return;
+    }
+
     launchImageLibrary(
       {
         mediaType: 'video',
         quality: 0.8,
         includeBase64: false,
       },
+      // @ts-ignore
       (response) => {
         if (response.assets && response.assets[0]) {
           const asset = response.assets[0];
@@ -397,13 +534,45 @@ const UploadScreen = () => {
     setUploading(true);
     try {
       for (const file of pendingFiles) {
-        // Read file data using FileSystem utility (cross-platform)
+        // Read file data using cross-platform approach
         let fileData: Uint8Array;
-        if (file.uri) {
-          // On native, uri is a file path; on web, it may be a blob URL or similar
-          // Use FileSystem.readFile to get Uint8Array (assume base64 for binary files)
-          const base64 = await FileSystem.readFile(file.uri, 'base64');
-          fileData = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+        
+        if ((Platform as any).OS === 'web' && file.webFile) {
+          // On web, read from the File object directly
+          try {
+            const arrayBuffer = await file.webFile.arrayBuffer();
+            fileData = new Uint8Array(arrayBuffer);
+          } catch (error) {
+            console.error('Failed to read web file:', error);
+            fileData = new Uint8Array();
+          }
+        } else if (file.uri) {
+          if ((Platform as any).OS === 'web') {
+            // On web, URI might be a blob URL from file picker
+            try {
+              const response = await fetch(file.uri);
+              const arrayBuffer = await response.arrayBuffer();
+              fileData = new Uint8Array(arrayBuffer);
+            } catch (error) {
+              console.error('Failed to read file on web:', error);
+              // Fallback to empty data
+              fileData = new Uint8Array();
+            }
+          } else {
+            // On native, use RNFS to read the file
+            try {
+              if (RNFS) {
+                const base64 = await RNFS.readFile(file.uri, 'base64');
+                fileData = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+              } else {
+                console.error('RNFS not available on native platform');
+                fileData = new Uint8Array();
+              }
+            } catch (error) {
+              console.error('Failed to read file on native:', error);
+              fileData = new Uint8Array();
+            }
+          }
         } else {
           fileData = new Uint8Array();
         }

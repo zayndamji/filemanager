@@ -1,4 +1,6 @@
 import { generateUUID, encryptData, decryptData } from './WebCryptoUtils';
+import { Platform } from 'react-native';
+import { uint8ArrayToBase64, base64ToUint8Array } from './Base64Utils';
 
 interface FileMetadata {
   name: string;
@@ -131,11 +133,18 @@ export class EncryptionUtils {
     imageData: Uint8Array,
     mimeType: string
   ): Promise<Uint8Array | null> {
-    // Resize and compress image to max 400px width, scaled height
+    // Only resize on native platforms - web doesn't have the required libraries
+    if (Platform.OS === 'web') {
+      // On web, just return the original image data for now
+      // Could implement canvas-based resizing here if needed
+      return imageData;
+    }
+    
+    // Resize and compress image to max 400px width, scaled height (native only)
     try {
       const ImageResizer = require('react-native-image-resizer').default;
       // Convert Uint8Array to base64 string
-      const base64 = Buffer.from(imageData).toString('base64');
+      const base64 = uint8ArrayToBase64(imageData);
       const uri = `data:${mimeType};base64,${base64}`;
 
       // Resize and compress
@@ -150,7 +159,7 @@ export class EncryptionUtils {
       // Read resized image as base64
       const RNFS = require('react-native-fs');
       const resizedBase64 = await RNFS.readFile(resized.uri, 'base64');
-      return new Uint8Array(Buffer.from(resizedBase64, 'base64'));
+      return base64ToUint8Array(resizedBase64);
     } catch (err) {
       console.warn('[EncryptionUtils] Failed to resize/compress preview, using original image', err);
       return imageData;

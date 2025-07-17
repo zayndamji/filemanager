@@ -2,6 +2,7 @@
 import React from 'react';
 import { Platform, View, StyleSheet, Dimensions, ActivityIndicator, Text } from 'react-native';
 import { Image } from 'react-native';
+import { uint8ArrayToBase64 } from '../../utils/Base64Utils';
 
 // props for image file renderer
 interface ImageFileProps {
@@ -22,11 +23,11 @@ const ImageFileNative: React.FC<ImageFileProps> = ({ fileData, mimeType, isPrevi
     if (uint8.length > 20000) {
       uint8 = uint8.slice(0, 20000);
     }
-    const base64String = Buffer.from(uint8).toString('base64');
+    const base64String = uint8ArrayToBase64(uint8);
     dataUri = `data:${mimeType};base64,${base64String}`;
   } else {
     const uint8 = fileData instanceof Uint8Array ? fileData : new Uint8Array(fileData);
-    const base64String = Buffer.from(uint8).toString('base64');
+    const base64String = uint8ArrayToBase64(uint8);
     dataUri = `data:${mimeType};base64,${base64String}`;
   }
   if (!dataUri || typeof dataUri !== 'string') {
@@ -57,11 +58,11 @@ const ImageFileWeb: React.FC<ImageFileProps> = ({ fileData, mimeType, isPreview 
     if (uint8.length > 20000) {
       uint8 = uint8.slice(0, 20000);
     }
-    const base64String = Buffer.from(uint8).toString('base64');
+    const base64String = uint8ArrayToBase64(uint8);
     dataUri = `data:${mimeType};base64,${base64String}`;
   } else {
     const uint8 = fileData instanceof Uint8Array ? fileData : new Uint8Array(fileData);
-    const base64String = Buffer.from(uint8).toString('base64');
+    const base64String = uint8ArrayToBase64(uint8);
     dataUri = `data:${mimeType};base64,${base64String}`;
   }
   if (!dataUri || typeof dataUri !== 'string') {

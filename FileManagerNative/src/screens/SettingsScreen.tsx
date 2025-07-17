@@ -48,29 +48,25 @@ const SettingsScreen = () => {
       console.log('[SettingsScreen] Export: Starting export process');
       // Use cross-platform FileSystem utility for export
       try {
-        // Explicitly type files as array of file objects with name and path
-        const files: { name: string; path?: string }[] = await FileSystem.listFiles();
-        console.log('[SettingsScreen] Export: Files listed', files);
-        // Only include files with decryptable .metadata.enc
+        // Get files list (web returns string[], native returns object[])
+        const filesList = await FileSystem.listFiles();
+        console.log('[SettingsScreen] Export: Files listed', filesList);
+        console.log('[SettingsScreen] Export: First file structure:', filesList[0]);
+        // Include all encrypted files that exist (more permissive approach)
         const filesToExport: { name: string; data: string }[] = [];
-        for (const file of files) {
-          const name = file.name;
-          if (typeof name === 'string' && name.endsWith('.metadata.enc')) {
+        for (const file of filesList) {
+          // Handle both string[] (web) and {name, path}[] (native) formats
+          const name = typeof file === 'string' ? file : file.name;
+          const path = typeof file === 'string' ? file : (file.path || file.name);
+          console.log('[SettingsScreen] Export: Processing file:', name, 'Type:', typeof file);
+          if (typeof name === 'string' && (name.endsWith('.enc') || name.endsWith('.metadata.enc') || name.endsWith('.preview.enc')) && !name.startsWith('.')) {
             try {
-              const uuid = name.replace('.metadata.enc', '');
-              await FileManagerService.loadFileMetadata(uuid, derivedKey);
-              console.log('[SettingsScreen] Export: Decryptable metadata', name);
-              filesToExport.push({ name, data: await FileSystem.readFile(file.path || name, 'base64') });
-              for (const ext of ['.enc', '.preview.enc']) {
-                const relatedName = uuid + ext;
-                const relatedFile = files.find((f: { name: string }) => f.name === relatedName);
-                if (relatedFile) {
-                  console.log('[SettingsScreen] Export: Adding related file', relatedName);
-                  filesToExport.push({ name: relatedName, data: await FileSystem.readFile(relatedFile.path || relatedName, 'base64') });
-                }
-              }
-            } catch (e) {
-              console.warn('[SettingsScreen] Export: Skipping undecryptable metadata', name, e);
+              console.log('[SettingsScreen] Export: Adding file', name);
+              const fileData = await FileSystem.readFile(path, 'base64');
+              filesToExport.push({ name, data: fileData });
+            } catch (readError) {
+              const errorMessage = readError instanceof Error ? readError.message : String(readError);
+              console.warn('[SettingsScreen] Export: Failed to read file', name, 'Error:', errorMessage);
             }
           }
         }
@@ -104,10 +100,17 @@ const SettingsScreen = () => {
           // Native: generate base64 and write directly
           const content = await zip.generateAsync({ type: 'base64' });
           console.log('[SettingsScreen] Export: ZIP created (native, base64)');
-          const filesDir = await FileSystem.pickDirectory();
-          const zipPath = `${filesDir}/exported_files.zip`;
-          await FileSystem.writeFile(zipPath, content, 'base64');
-          Alert.alert('Export Complete', `ZIP file saved to ${zipPath}`);
+          
+          if ((Platform as any).OS === 'web') {
+            // Web: Use File System Access API with already selected directory
+            await FileSystem.writeFile('exported_files.zip', content, 'base64');
+          } else {
+            // Native: Use DocumentDirectoryPath
+            const filesDir = await FileSystem.pickDirectory();
+            const zipPath = `${filesDir}/exported_files.zip`;
+            await FileSystem.writeFile(zipPath, content, 'base64');
+          }
+          Alert.alert('Export Complete', 'ZIP file saved successfully');
         }
       } catch (err) {
         console.error('[SettingsScreen] Export: Error', err);

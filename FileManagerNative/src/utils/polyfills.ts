@@ -14,7 +14,7 @@ if (isWeb) {
       globalThis.Buffer = require('buffer').Buffer;
     } catch {}
   }
-  // Patch Buffer.fromBuffer for web compatibility (some node libs expect it)
+  // Add fromBuffer polyfill for libraries that expect it
   if (globalThis.Buffer && !(globalThis.Buffer as any).fromBuffer) {
     (globalThis.Buffer as any).fromBuffer = (buf: any) => globalThis.Buffer.from(buf);
   }
@@ -74,11 +74,16 @@ if (isWeb) {
   } catch {}
   require('react-native-get-random-values');
   const { Buffer } = require('buffer');
-  require('react-native-crypto');
+  // Conditionally require react-native-crypto (might have fromBuffer issues)
+  try {
+    require('react-native-crypto');
+  } catch (e) {
+    console.warn('Failed to load react-native-crypto:', e);
+  }
   require('react-native-randombytes');
   const { Readable } = require('stream-browserify');
   if (!globalThis.Buffer) globalThis.Buffer = Buffer;
-  // Patch Buffer.fromBuffer for native compatibility (some node libs expect it)
+  // Add fromBuffer polyfill for libraries that expect it
   if (globalThis.Buffer && !(globalThis.Buffer as any).fromBuffer) {
     (globalThis.Buffer as any).fromBuffer = (buf: any) => globalThis.Buffer.from(buf);
   }
