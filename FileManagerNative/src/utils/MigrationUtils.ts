@@ -1,6 +1,7 @@
-import RNFS from 'react-native-fs';
 import { FileManagerService, EncryptedFile } from './FileManagerService';
 import { decryptData, encryptData } from './WebCryptoUtils';
+import * as FileSystem from './FileSystem';
+import { Platform } from 'react-native';
 
 // migration utility for encrypted file formats
 export class MigrationUtils {
@@ -53,6 +54,10 @@ export class MigrationUtils {
     const fileBuffer = await decryptData(encryptedFile, key);
     const fileData = new Uint8Array(fileBuffer);
     // save using the file manager service
+    // Write fileData to a temp file using FileSystem utility (cross-platform)
+    const tempFileName = 'migration-temp-file';
+    await FileSystem.writeFile(tempFileName, fileData, 'base64');
+    // Save using the file manager service (pass fileData directly if possible)
     const savedFile = await FileManagerService.saveEncryptedFile(
       fileData,
       metadata.name,
@@ -61,18 +66,17 @@ export class MigrationUtils {
       metadata.folderPath || [],
       metadata.tags || []
     );
+    // Clean up temp file if needed (FileSystem utility should handle platform differences)
+    try { await FileSystem.deleteFile?.(tempFileName); } catch {}
     // if there's a preview, save it separately
     if (encryptedPreview) {
       const previewBuffer = await decryptData(encryptedPreview, key);
       const previewData = new Uint8Array(previewBuffer);
       // save the preview using the existing file path structure
-      const previewPath = `${RNFS.DocumentDirectoryPath}/${savedFile.uuid}.preview.enc`;
-      const uint8ArrayToBase64 = (uint8Array: Uint8Array): string => {
-        return Buffer.from(uint8Array).toString('base64');
-      };
-      const previewBase64 = uint8ArrayToBase64(await encryptData(previewData, key));
-      await RNFS.writeFile(previewPath, previewBase64, 'base64');
-      savedFile.previewPath = previewPath;
+      const previewFileName = `${savedFile.uuid}.preview.enc`;
+      const previewBase64 = Buffer.from(await encryptData(previewData, key)).toString('base64');
+      await FileSystem.writeFile(previewFileName, previewBase64, 'base64');
+      savedFile.previewPath = previewFileName;
     }
     return savedFile;
   }
