@@ -12,13 +12,12 @@ import { FileProvider } from './src/context/FileContext';
 import { PasswordProvider } from './src/context/PasswordContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { ThemeProvider } from './src/theme';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
 
   React.useEffect(() => {
-    Icon.loadFont(); // Ensure MaterialIcons font is loaded
+    // Vector icons no longer needed - using WebCompatibleIcon with Unicode symbols
   }, []);
 
   return (

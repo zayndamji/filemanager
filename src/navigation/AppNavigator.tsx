@@ -1,7 +1,7 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import WebCompatibleIcon from '../components/WebCompatibleIcon';
 import { ThemeContext } from '../theme';
 
 // Screen imports (we'll create these next)
@@ -25,9 +25,9 @@ function MainTabNavigator() {
           if (route.name === 'Home') iconName = 'home';
           else if (route.name === 'Files') iconName = 'folder';
           else if (route.name === 'Gallery') iconName = 'photo-library';
-          else if (route.name === 'Upload') iconName = 'cloud-upload';
+          else if (route.name === 'Upload') iconName = 'upload';
           else if (route.name === 'Settings') iconName = 'settings';
-          return <Icon name={iconName} size={size} color={color} />;
+          return <WebCompatibleIcon name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: theme.accent,
         tabBarInactiveTintColor: theme.textSecondary,

@@ -33,7 +33,7 @@ import { useFileContext } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
 import { FileManagerService } from '../utils/FileManagerService';
 import * as FileSystem from '../utils/FileSystem';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import WebCompatibleIcon from '../components/WebCompatibleIcon';
 import { ThemeContext } from '../theme';
 import MetadataEditor from '../components/MetadataEditor/MetadataEditor';
 import { useMetadataEditor } from '../components/MetadataEditor/useMetadataEditor';
@@ -647,14 +647,14 @@ const UploadScreen = () => {
               disabled={uploading}
             >
               <View style={[styles.optionIcon, { backgroundColor: option.color }]}> 
-                <Icon name={option.icon} size={28} color={theme.chipText} />
+                <WebCompatibleIcon name={option.icon} size={28} color={theme.chipText} />
               </View>
               <View style={styles.optionContent}>
                 <Text style={styles.optionTitle}>{option.title}</Text>
                 <Text style={styles.optionSubtitle}>{option.subtitle}</Text>
               </View>
               <View style={styles.chevron}>
-                <Icon name="chevron-right" size={20} color="#ccc" />
+                <WebCompatibleIcon name="chevron-right" size={20} color="#ccc" />
               </View>
             </TouchableOpacity>
           ))}
@@ -676,7 +676,7 @@ const UploadScreen = () => {
               <Text style={styles.pendingFilesTitle}>Files to upload:</Text>
               {pendingFiles.map((file, idx) => (
                 <View key={file.uri + idx} style={styles.pendingFileRow}>
-                  <Icon name="insert-drive-file" size={20} color={theme.accent} />
+                  <WebCompatibleIcon name="insert-drive-file" size={20} color={theme.accent} />
                   <Text style={styles.pendingFileName}>{file.name}</Text>
                   <Text style={styles.pendingFileType}>{file.type}</Text>
                 </View>
@@ -693,7 +693,7 @@ const UploadScreen = () => {
         )}
 
         <View style={styles.infoContainer}>
-          <Icon name="security" size={20} color={theme.accentSecondary} />
+          <WebCompatibleIcon name="security" size={20} color={theme.accentSecondary} />
           <Text style={styles.infoText}>
             All files are automatically encrypted with AES-256 encryption before being stored. 
             Your files are secured with your password and cannot be accessed without it.
@@ -701,7 +701,7 @@ const UploadScreen = () => {
         </View>
 
         <View style={styles.infoContainer}>
-          <Icon name="info" size={20} color={theme.textSecondary} />
+          <WebCompatibleIcon name="info" size={20} color={theme.textSecondary} />
           <Text style={styles.infoText}>
             Files are stored locally on your device in encrypted format. 
             Make sure to remember your password as it cannot be recovered.

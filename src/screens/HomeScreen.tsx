@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFileContext } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import WebCompatibleIcon from '../components/WebCompatibleIcon';
 import { useNavigation } from '@react-navigation/native';
 import { ThemeContext } from '../theme';
 
@@ -133,7 +133,7 @@ const HomeScreen = () => {
         <View style={styles.statsContainer}>
           {stats.map((stat, index) => (
             <View key={index} style={styles.statCard}>
-              <Icon name={stat.icon} size={32} color="#007AFF" />
+              <WebCompatibleIcon name={stat.icon} size={32} color="#007AFF" />
               <Text style={styles.statValue}>{stat.value}</Text>
               <Text style={styles.statLabel}>{stat.label}</Text>
             </View>
@@ -142,19 +142,19 @@ const HomeScreen = () => {
 
         <View style={styles.actionsContainer}>
           <TouchableOpacity style={styles.actionCard} onPress={() => (navigation as any).navigate('Upload')}>
-            <Icon name="cloud-upload" size={32} color="#34C759" />
+            <WebCompatibleIcon name="cloud-upload" size={32} color="#34C759" />
             <Text style={styles.actionTitle}>Upload Files</Text>
             <Text style={styles.actionSubtitle}>Add new files to your secure storage</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.actionCard} onPress={() => (navigation as any).navigate('Gallery')}>
-            <Icon name="photo-library" size={32} color="#FF9500" />
+            <WebCompatibleIcon name="photo-library" size={32} color="#FF9500" />
             <Text style={styles.actionTitle}>Gallery</Text>
             <Text style={styles.actionSubtitle}>View your images and photos</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.actionCard} onPress={() => (navigation as any).navigate('Files')}>
-            <Icon name="folder" size={32} color="#5856D6" />
+            <WebCompatibleIcon name="folder" size={32} color="#5856D6" />
             <Text style={styles.actionTitle}>Browse Files</Text>
             <Text style={styles.actionSubtitle}>Manage your encrypted files</Text>
           </TouchableOpacity>

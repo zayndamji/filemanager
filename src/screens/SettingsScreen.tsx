@@ -10,7 +10,7 @@ import { ThemeContext, darkTheme, lightTheme } from '../theme';
 import JSZip from 'jszip';
 import { Platform } from 'react-native';
 import * as FileSystem from '../utils/FileSystem';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import WebCompatibleIcon from '../components/WebCompatibleIcon';
 import { showAlert } from '../utils/AlertUtils';
 
 // Conditionally import native libraries
@@ -430,7 +430,7 @@ const SettingsScreen = () => {
         style={[getStyles(theme).deleteButton, { backgroundColor: theme.accent, marginBottom: 32 }]}
         onPress={handleLogout}
       >
-        <Icon name="logout" size={24} color={theme.chipText} />
+        <WebCompatibleIcon name="logout" size={24} color={theme.chipText} />
         <Text style={getStyles(theme).deleteButtonText}>Log Out</Text>
       </TouchableOpacity>
 
@@ -440,7 +440,7 @@ const SettingsScreen = () => {
         style={[getStyles(theme).deleteButton, { backgroundColor: theme.card, marginTop: 12 }]}
         onPress={handleToggleTheme}
       >
-        <Icon name={isDark ? 'brightness-4' : 'brightness-7'} size={24} color={theme.chipText} />
+        <WebCompatibleIcon name={isDark ? 'brightness-4' : 'brightness-7'} size={24} color={theme.chipText} />
         <Text style={getStyles(theme).deleteButtonText}>{isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</Text>
       </TouchableOpacity>
 
@@ -451,7 +451,7 @@ const SettingsScreen = () => {
         onPress={handleExport}
         disabled={exporting}
       >
-        <Icon name="archive" size={24} color={theme.chipText} />
+        <WebCompatibleIcon name="archive" size={24} color={theme.chipText} />
         <Text style={getStyles(theme).deleteButtonText}>{exporting ? 'Exporting...' : 'Export to ZIP'}</Text>
       </TouchableOpacity>
       <TouchableOpacity
@@ -459,7 +459,7 @@ const SettingsScreen = () => {
         onPress={handleImport}
         disabled={exporting || importing}
       >
-        <Icon name="unarchive" size={24} color={theme.chipText} />
+        <WebCompatibleIcon name="unarchive" size={24} color={theme.chipText} />
         <Text style={getStyles(theme).deleteButtonText}>{importing ? 'Importing...' : 'Import from ZIP'}</Text>
       </TouchableOpacity>
 
@@ -470,7 +470,7 @@ const SettingsScreen = () => {
         onPress={handleDeleteAll}
         disabled={deleting}
       >
-        <Icon name="delete-forever" size={24} color={theme.chipText} />
+        <WebCompatibleIcon name="delete-forever" size={24} color={theme.chipText} />
         <Text style={getStyles(theme).deleteButtonText}>Delete All Files</Text>
       </TouchableOpacity>
       <TouchableOpacity
@@ -478,7 +478,7 @@ const SettingsScreen = () => {
         onPress={handleClearCorrupted}
         disabled={deleting}
       >
-        <Icon name="warning" size={24} color={theme.chipText} />
+        <WebCompatibleIcon name="warning" size={24} color={theme.chipText} />
         <Text style={getStyles(theme).deleteButtonText}>Clear Corrupted Files</Text>
       </TouchableOpacity>
       {deleting && <ActivityIndicator size="large" color={theme.error} style={{ marginTop: 16 }} />}

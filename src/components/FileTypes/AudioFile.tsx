@@ -2,7 +2,7 @@ import { FileManagerService } from '../../utils/FileManagerService';
 // audio file renderer component
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import WebCompatibleIcon from '../WebCompatibleIcon';
 import { showAlert } from '../../utils/AlertUtils';
 
 // native implementation - conditionally import Sound for native platforms only
@@ -122,12 +122,12 @@ function AudioFileNative(props: {
           <View style={styles.headerActions}>
             {onDelete && (
               <TouchableOpacity onPress={handleDelete} style={styles.deleteButton}>
-                <Icon name="delete" size={24} color="#FF4444" />
+                <WebCompatibleIcon name="delete" size={24} color="#FF4444" />
               </TouchableOpacity>
             )}
             {onClose && (
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Icon name="close" size={24} color="#666" />
+                <WebCompatibleIcon name="close" size={24} color="#666" />
               </TouchableOpacity>
             )}
           </View>
@@ -136,7 +136,7 @@ function AudioFileNative(props: {
 
       <View style={styles.audioPlayer}>
         <View style={styles.audioIcon}>
-          <Icon name="audiotrack" size={80} color="#4CAF50" />
+          <WebCompatibleIcon name="audiotrack" size={80} color="#4CAF50" />
         </View>
 
         <Text style={styles.title}>{fileName}</Text>
@@ -154,7 +154,7 @@ function AudioFileNative(props: {
             style={[styles.controlButton, styles.playButton]}
             disabled={!sound}
           >
-            <Icon 
+            <WebCompatibleIcon 
               name={isPlaying ? 'pause' : 'play-arrow'} 
               size={32} 
               color="#FFF" 
@@ -165,7 +165,7 @@ function AudioFileNative(props: {
             style={styles.controlButton}
             disabled={!sound}
           >
-            <Icon name="stop" size={28} color="#666" />
+            <WebCompatibleIcon name="stop" size={28} color="#666" />
           </TouchableOpacity>
         </View>
 

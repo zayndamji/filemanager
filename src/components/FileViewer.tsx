@@ -37,7 +37,7 @@ import MetadataEditor from './MetadataEditor/MetadataEditor';
 import { useMetadataEditor } from './MetadataEditor/useMetadataEditor';
 import { darkTheme, ThemeContext } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import WebCompatibleIcon from './WebCompatibleIcon';
 
 // file type renderers
 import ImageFile from './FileTypes/ImageFile';
@@ -157,7 +157,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
     } else {
       rendered = (
         <View style={styles.unsupportedContainer}>
-          <Icon name="insert-drive-file" size={64} color="#ccc" />
+          <WebCompatibleIcon name="insert-drive-file" size={64} color="#ccc" />
           <Text style={styles.unsupportedText}>unsupported file type: {mimeType}</Text>
           <Text style={styles.unsupportedSubtext}><Text>{formatFileSize(metadata.size)}</Text></Text>
         </View>
@@ -227,7 +227,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
           {/* header section with close, filename, and actions */}
           <View style={[styles.header, { paddingTop: insets.top || 16, minHeight: 56 + (insets.top || 16), flexDirection: 'row', alignItems: 'center' }]}> 
             <Pressable onPress={onClose} style={styles.closeButton} accessibilityLabel="Close">
-              <Icon name="close" size={24} color="#666" />
+              <WebCompatibleIcon name="close" size={24} color="#666" />
             </Pressable>
 
             <Text style={styles.fileName} numberOfLines={1} ellipsizeMode="middle">{viewerMetadata.name}</Text>
@@ -235,12 +235,12 @@ const FileViewer: React.FC<FileViewerProps> = ({
             <View style={styles.headerActions}>
               {onDelete && (
                 <Pressable onPress={handleDelete} style={styles.actionButton} accessibilityLabel="Delete">
-                  <Icon name="delete" size={24} color="#FF4444" />
+                  <WebCompatibleIcon name="delete" size={24} color="#FF4444" />
                 </Pressable>
               )}
               {onDownload && (
                 <Pressable onPress={handleDownload} style={styles.actionButton} accessibilityLabel="Download">
-                  <Icon name="download" size={24} color="#666" />
+                  <WebCompatibleIcon name="download" size={24} color="#666" />
                 </Pressable>
               )}
             </View>

@@ -15,7 +15,7 @@ import { useFileContext } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
 import { FileManagerService, EncryptedFile } from '../utils/FileManagerService';
 import FileViewer from '../components/FileViewer';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import WebCompatibleIcon from '../components/WebCompatibleIcon';
 import { ThemeContext } from '../theme';
 import { showAlert } from '../utils/AlertUtils';
 
@@ -295,7 +295,7 @@ const FileListScreen = () => {
       onLongPress={() => handleFileLongPress(item)}
     >
       <View style={styles.fileIcon}>
-        <Icon
+        <WebCompatibleIcon
           name={getFileIcon(item.metadata.type)}
           size={24}
           color="#007AFF"
@@ -318,21 +318,21 @@ const FileListScreen = () => {
       onPress={() => navigateToSubfolder(item)}
     >
       <View style={styles.fileIcon}>
-        <Icon name="folder" size={24} color="#34C759" />
+        <WebCompatibleIcon name="folder" size={24} color="#34C759" />
       </View>
       <View style={styles.fileInfo}>
         <Text style={styles.fileName}>{item}</Text>
         <Text style={styles.fileDetails}>Folder</Text>
       </View>
       <View style={styles.chevron}>
-        <Icon name="chevron-right" size={20} color="#ccc" />
+        <WebCompatibleIcon name="chevron-right" size={20} color="#ccc" />
       </View>
     </TouchableOpacity>
   );
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Icon name="folder-open" size={64} color="#ccc" />
+      <WebCompatibleIcon name="folder-open" size={64} color="#ccc" />
       <Text style={styles.emptyText}>No files found</Text>
       <Text style={styles.emptySubtext}>Upload some files to get started</Text>
     </View>
@@ -369,7 +369,7 @@ const FileListScreen = () => {
           </Text>
           {currentFolderPath.length > 0 && (
             <TouchableOpacity onPress={navigateUp} style={styles.upButton}>
-              <Icon name="arrow-upward" size={16} color="#007AFF" />
+              <WebCompatibleIcon name="arrow-upward" size={16} color="#007AFF" />
               <Text style={styles.upButtonText}>Up</Text>
             </TouchableOpacity>
           )}

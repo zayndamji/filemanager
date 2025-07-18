@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import WebCompatibleIcon from '../WebCompatibleIcon';
 import { ThemeContext } from '../../theme';
 
 export interface MetadataEditorProps {
@@ -72,7 +72,7 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
       <View style={[styles.inputContainer, { backgroundColor: theme.surface, shadowColor: theme.shadow }] }>
         <Text style={{ fontSize: 14, color: theme.textSecondary, marginBottom: 4 }}>Tags:</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Icon name="label" size={20} color={theme.accentSecondary} />
+          <WebCompatibleIcon name="label" size={20} color={theme.accentSecondary} />
           <TextInput
             style={[styles.input, { flex: 1, marginLeft: 8, backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.inputBorder }]} 
             value={tagInput}
@@ -100,7 +100,7 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
             }}
             disabled={!editable || !tagInput.trim()}
           >
-            <Icon name="add" size={24} color={!editable || !tagInput.trim() ? theme.disabled : theme.accent} />
+            <WebCompatibleIcon name="add" size={24} color={!editable || !tagInput.trim() ? theme.disabled : theme.accent} />
           </TouchableOpacity>
         </View>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
@@ -112,7 +112,7 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
                 style={styles.removeTagButton}
                 disabled={!editable}
               >
-                <Icon name="close" size={16} color="#fff" />
+                <WebCompatibleIcon name="close" size={16} color="#fff" />
               </TouchableOpacity>
             </View>
           ))}

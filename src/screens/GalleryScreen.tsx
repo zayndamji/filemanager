@@ -20,7 +20,7 @@ import { usePasswordContext } from '../context/PasswordContext';
 import { FileManagerService, EncryptedFile } from '../utils/FileManagerService';
 import { uint8ArrayToBase64 } from '../utils/Base64Utils';
 import FileViewer from '../components/FileViewer';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import WebCompatibleIcon from '../components/WebCompatibleIcon';
 import { ThemeContext } from '../theme';
 import { showAlert } from '../utils/AlertUtils';
 
@@ -431,7 +431,7 @@ const GalleryScreen = () => {
             />
           ) : (
             <View style={styles.loadingContainer}>
-              <Icon 
+              <WebCompatibleIcon 
                 name={isLoading ? "hourglass-empty" : "image"} 
                 size={32} 
                 color={isLoading ? "#007AFF" : "#ccc"} 
@@ -448,7 +448,7 @@ const GalleryScreen = () => {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Icon name="photo-library" size={64} color="#ccc" />
+      <WebCompatibleIcon name="photo-library" size={64} color="#ccc" />
       <Text style={styles.emptyText}>No images found</Text>
       <Text style={styles.emptySubtext}>Upload some images to see them here</Text>
     </View>
@@ -495,7 +495,7 @@ const GalleryScreen = () => {
                 }}
               >
                 <Text style={styles.tagChipText}>{tag}</Text>
-                <Icon name="check" size={14} color="#fff" style={{ marginLeft: 4 }} />
+                <WebCompatibleIcon name="check" size={14} color="#fff" />
               </TouchableOpacity>
             ));
 
