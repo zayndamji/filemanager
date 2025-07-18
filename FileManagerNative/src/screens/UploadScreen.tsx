@@ -333,10 +333,8 @@ const UploadScreen = () => {
   const styles = getStyles(theme);
 
   const handleDocumentPicker = async () => {
-    // Check if we're on web using multiple detection methods
-    const isWeb = Platform.OS === 'web' || typeof (global as any).window !== 'undefined';
-    
-    if (isWeb) {
+    // Use strict platform detection - only web if Platform.OS is explicitly 'web'
+    if (Platform.OS === 'web') {
       console.log('[UploadScreen] Using web document picker');
       // On web, use HTML file input for document selection
       const win: any = (global as any).window || (global as any);
@@ -392,10 +390,8 @@ const UploadScreen = () => {
     // Debug log to check platform detection
     console.log('[UploadScreen] handleImagePicker called, Platform.OS:', Platform.OS);
     
-    // Check if we're on web using multiple detection methods
-    const isWeb = Platform.OS === 'web' || typeof (global as any).window !== 'undefined';
-    
-    if (isWeb) {
+    // Use strict platform detection - only web if Platform.OS is explicitly 'web'
+    if (Platform.OS === 'web') {
       console.log('[UploadScreen] Using web file picker');
       // On web, use HTML file input for image selection
       const win: any = (global as any).window || (global as any);
@@ -467,10 +463,8 @@ const UploadScreen = () => {
     // Debug log to check platform detection
     console.log('[UploadScreen] handleVideoPicker called, Platform.OS:', Platform.OS);
     
-    // Check if we're on web using multiple detection methods
-    const isWeb = Platform.OS === 'web' || typeof (global as any).window !== 'undefined';
-    
-    if (isWeb) {
+    // Use strict platform detection - only web if Platform.OS is explicitly 'web'
+    if (Platform.OS === 'web') {
       console.log('[UploadScreen] Using web video picker');
       // On web, use HTML file input for video selection
       const win: any = (global as any).window || (global as any);

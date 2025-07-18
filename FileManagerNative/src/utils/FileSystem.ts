@@ -1,11 +1,3 @@
-export const deleteFile = async (pathOrName: string) => {
-  if (Platform.OS === 'web') {
-    if (!webDirectoryHandle) throw new Error('No directory handle set');
-    await webDirectoryHandle.removeEntry(pathOrName);
-  } else {
-    await RNFS.unlink(pathOrName);
-  }
-};
 // Cross-platform file system abstraction
 // Native: uses react-native-fs
 // Web: uses File System Access API
@@ -27,6 +19,17 @@ export const setWebDirectoryHandle = (handle: any) => {
 };
 
 export const getWebDirectoryHandle = () => webDirectoryHandle;
+
+export const deleteFile = async (pathOrName: string) => {
+  if (Platform.OS === 'web') {
+    if (!webDirectoryHandle) throw new Error('No directory handle set');
+    await webDirectoryHandle.removeEntry(pathOrName);
+  } else {
+    // On native, construct full path if only filename is provided
+    const fullPath = pathOrName.includes('/') ? pathOrName : `${RNFS.DocumentDirectoryPath}/${pathOrName}`;
+    await RNFS.unlink(fullPath);
+  }
+};
 
 export const pickDirectory = async () => {
   if (Platform.OS === 'web') {
@@ -64,7 +67,9 @@ export const writeFile = async (pathOrName: string, data: Uint8Array | string, e
     }
     await writable.close();
   } else {
-    await RNFS.writeFile(pathOrName, data, encoding);
+    // On native, construct full path if only filename is provided
+    const fullPath = pathOrName.includes('/') ? pathOrName : `${RNFS.DocumentDirectoryPath}/${pathOrName}`;
+    await RNFS.writeFile(fullPath, data, encoding);
   }
 };
 
@@ -83,7 +88,9 @@ export const readFile = async (pathOrName: string, encoding: 'utf8' | 'base64' =
       return await file.text();
     }
   } else {
-    return await RNFS.readFile(pathOrName, encoding);
+    // On native, construct full path if only filename is provided
+    const fullPath = pathOrName.includes('/') ? pathOrName : `${RNFS.DocumentDirectoryPath}/${pathOrName}`;
+    return await RNFS.readFile(fullPath, encoding);
   }
 };
 
@@ -97,7 +104,9 @@ export const exists = async (pathOrName: string): Promise<boolean> => {
       return false;
     }
   } else {
-    return await RNFS.exists(pathOrName);
+    // On native, construct full path if only filename is provided
+    const fullPath = pathOrName.includes('/') ? pathOrName : `${RNFS.DocumentDirectoryPath}/${pathOrName}`;
+    return await RNFS.exists(fullPath);
   }
 };
 
@@ -106,7 +115,9 @@ export const unlink = async (pathOrName: string): Promise<void> => {
     if (!webDirectoryHandle) throw new Error('No directory handle set');
     await webDirectoryHandle.removeEntry(pathOrName);
   } else {
-    await RNFS.unlink(pathOrName);
+    // On native, construct full path if only filename is provided
+    const fullPath = pathOrName.includes('/') ? pathOrName : `${RNFS.DocumentDirectoryPath}/${pathOrName}`;
+    await RNFS.unlink(fullPath);
   }
 };
 

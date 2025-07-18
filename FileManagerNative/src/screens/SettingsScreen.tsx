@@ -1,6 +1,6 @@
 declare const document: any;
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { useFileContext } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
 import { useNavigation } from '@react-navigation/native';
@@ -11,6 +11,32 @@ import JSZip from 'jszip';
 import { Platform } from 'react-native';
 import * as FileSystem from '../utils/FileSystem';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+
+// Conditionally import native libraries
+let Share: any = null;
+let DocumentPicker: any = null;
+if (Platform.OS !== 'web') {
+  try {
+    Share = require('react-native-share').default;
+    console.log('[SettingsScreen] react-native-share loaded successfully');
+  } catch (e) {
+    console.warn('Failed to load react-native-share:', e);
+  }
+  try {
+    DocumentPicker = require('react-native-document-picker').default;
+    console.log('[SettingsScreen] react-native-document-picker loaded successfully');
+  } catch (e) {
+    console.warn('Failed to load react-native-document-picker:', e);
+  }
+}
+
+// Ensure atob is available (should be from polyfills, but double-check)
+const atob = globalThis.atob || ((str: string) => {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(str, 'base64').toString('binary');
+  }
+  throw new Error('atob not available and Buffer not found');
+});
 
 type RootStackParamList = {
   Password: undefined;
@@ -24,6 +50,7 @@ const SettingsScreen = () => {
   const { theme, setTheme } = React.useContext(ThemeContext);
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
   
   // Helper: Check if metadata.enc is decryptable
   async function isDecryptable(metadataPath: string, derivedKey: Uint8Array) {
@@ -73,7 +100,6 @@ const SettingsScreen = () => {
         console.log('[SettingsScreen] Export: Files to export', filesToExport.map(f => f.name));
         if (filesToExport.length === 0) {
           Alert.alert('No files', 'No decryptable files found.');
-          setExporting(false);
           return;
         }
         // Create ZIP
@@ -97,20 +123,59 @@ const SettingsScreen = () => {
           }, 100);
           Alert.alert('Export Complete', 'ZIP file downloaded.');
         } else {
-          // Native: generate base64 and write directly
+          // Native: Use Share API to let user save/share the ZIP file
           const content = await zip.generateAsync({ type: 'base64' });
           console.log('[SettingsScreen] Export: ZIP created (native, base64)');
           
-          if ((Platform as any).OS === 'web') {
-            // Web: Use File System Access API with already selected directory
-            await FileSystem.writeFile('exported_files.zip', content, 'base64');
+          if (Share && Share.open) {
+            // Write ZIP to documents directory temporarily
+            const tempFileName = `exported_files_${Date.now()}.zip`;
+            await FileSystem.writeFile(tempFileName, content, 'base64');
+            
+            // Get the full path for sharing
+            let tempZipPath: string;
+            try {
+              const RNFS = require('react-native-fs');
+              tempZipPath = `${RNFS.DocumentDirectoryPath}/${tempFileName}`;
+            } catch (e) {
+              // Fallback if RNFS not available
+              tempZipPath = tempFileName;
+            }
+            
+            // Use Share API to let user save/share the file
+            const shareOptions = {
+              title: 'Export Encrypted Files',
+              message: 'Your encrypted files have been exported to a ZIP archive.',
+              url: `file://${tempZipPath}`,
+              type: 'application/zip',
+              filename: 'exported_files.zip'
+            };
+            
+            try {
+              const result = await Share.open(shareOptions);
+              Alert.alert('Export Complete', 'ZIP file ready to save or share.');
+            } catch (shareErr: any) {
+              console.error('[SettingsScreen] Share error:', shareErr);
+              if (shareErr && shareErr.message && shareErr.message.indexOf('cancelled') === -1) {
+                Alert.alert('Share Error', 'Failed to share the export file. File saved to documents instead.');
+              }
+              // User cancelled sharing - this is normal, don't show error
+            }
+            
+            // Clean up temp file after a delay
+            setTimeout(async () => {
+              try {
+                await FileSystem.deleteFile(tempFileName);
+              } catch (e) {
+                console.warn('Failed to clean up temp export file:', e);
+              }
+            }, 30000); // 30 seconds delay
           } else {
-            // Native: Use DocumentDirectoryPath
-            const filesDir = await FileSystem.pickDirectory();
-            const zipPath = `${filesDir}/exported_files.zip`;
-            await FileSystem.writeFile(zipPath, content, 'base64');
+            // Fallback: save to documents directory
+            const zipFileName = `exported_files_${Date.now()}.zip`;
+            await FileSystem.writeFile(zipFileName, content, 'base64');
+            Alert.alert('Export Complete', `ZIP file saved to documents as ${zipFileName}`);
           }
-          Alert.alert('Export Complete', 'ZIP file saved successfully');
         }
       } catch (err) {
         console.error('[SettingsScreen] Export: Error', err);
@@ -130,10 +195,11 @@ const SettingsScreen = () => {
       Alert.alert('Error', 'No password set.');
       return;
     }
+    setImporting(true);
     // Use cross-platform FileSystem utility for import
     try {
       console.log('[SettingsScreen] Import: Starting import process');
-      // Prompt user for ZIP file (web: file input, native: file picker)
+      // Prompt user for ZIP file (web: file input, native: document picker)
       let zipData: Uint8Array | null = null;
       if (Platform.OS === 'web') {
         const input = document.createElement('input');
@@ -154,30 +220,102 @@ const SettingsScreen = () => {
         }
         console.log('[SettingsScreen] Import: ZIP file selected, size:', zipData.length);
       } else {
-        // Use FileSystem.pickDirectory to get path, then prompt for file (simulate DocumentPicker)
-        // For simplicity, assume user provides path to ZIP file (could be improved)
-        Alert.alert('Import', 'Please place your ZIP file in the app storage and enter the filename.');
-        return; // Implement native picker as needed
+        // Native: Use DocumentPicker to select ZIP file
+        if (DocumentPicker && DocumentPicker.pick) {
+          try {
+            const result = await DocumentPicker.pick({
+              type: [DocumentPicker.types.zip],
+              allowMultiSelection: false,
+            });
+            
+            if (result && result.length > 0) {
+              const pickedFile = result[0];
+              console.log('[SettingsScreen] Import: File picked:', pickedFile.name, 'URI:', pickedFile.uri);
+              
+              // Read the file content
+              let fileContent: string;
+              try {
+                const RNFS = require('react-native-fs');
+                fileContent = await RNFS.readFile(pickedFile.uri, 'base64');
+              } catch (e) {
+                console.error('Failed to load RNFS or read file:', e);
+                Alert.alert('Error', 'Failed to read the selected file.');
+                return;
+              }
+              
+              // Convert base64 to Uint8Array properly
+              try {
+                const Buffer = require('buffer').Buffer;
+                const buffer = Buffer.from(fileContent, 'base64');
+                zipData = new Uint8Array(buffer);
+                console.log('[SettingsScreen] Import: ZIP file loaded, size:', zipData.length);
+              } catch (conversionErr) {
+                console.error('[SettingsScreen] Import: Buffer conversion error:', conversionErr);
+                Alert.alert('Error', 'Failed to process the selected file.');
+                return;
+              }
+            } else {
+              Alert.alert('Import Cancelled', 'No ZIP file selected.');
+              return;
+            }
+          } catch (err: any) {
+            if (DocumentPicker.isCancel && DocumentPicker.isCancel(err)) {
+              Alert.alert('Import Cancelled', 'File selection was cancelled.');
+              return;
+            } else {
+              console.error('[SettingsScreen] Import: DocumentPicker error:', err);
+              Alert.alert('Error', 'Failed to select file.');
+              return;
+            }
+          }
+        } else {
+          Alert.alert('Error', 'File picker not available on this device.');
+          return;
+        }
       }
+      
       // Unzip and write files
-      const zip = await JSZip.loadAsync(zipData!);
-      console.log('[SettingsScreen] Import: ZIP loaded, files:', Object.keys(zip.files));
-      let importedCount = 0;
-      let importedSize = 0;
-      for (const [name, entry] of Object.entries(zip.files)) {
-        if (entry.dir) continue;
-        if (!name.endsWith('.enc') && !name.endsWith('.metadata.enc') && !name.endsWith('.preview.enc')) continue;
-        const fileData = await entry.async('uint8array');
-        await FileSystem.writeFile(name, fileData);
-        importedCount++;
-        importedSize += fileData.length;
-        console.log('[SettingsScreen] Import: Wrote file', name, 'size', fileData.length);
+      try {
+        const zip = await JSZip.loadAsync(zipData!);
+        console.log('[SettingsScreen] Import: ZIP loaded, files:', Object.keys(zip.files));
+        let importedCount = 0;
+        let importedSize = 0;
+        for (const [name, entry] of Object.entries(zip.files)) {
+          if (entry.dir) continue;
+          if (!name.endsWith('.enc') && !name.endsWith('.metadata.enc') && !name.endsWith('.preview.enc')) continue;
+          try {
+            const fileData = await entry.async('uint8array');
+            // Convert Uint8Array to base64 string for cross-platform compatibility
+            let dataToWrite: string | Uint8Array;
+            if (Platform.OS === 'web') {
+              dataToWrite = fileData; // Web can handle Uint8Array directly
+            } else {
+              // Native needs base64 string
+              const Buffer = require('buffer').Buffer;
+              const buffer = Buffer.from(fileData);
+              dataToWrite = buffer.toString('base64');
+            }
+            
+            await FileSystem.writeFile(name, dataToWrite, Platform.OS === 'web' ? 'utf8' : 'base64');
+            importedCount++;
+            importedSize += fileData.length;
+            console.log('[SettingsScreen] Import: Wrote file', name, 'size', fileData.length);
+          } catch (fileErr) {
+            console.error('[SettingsScreen] Import: Failed to write file', name, fileErr);
+          }
+        }
+        await refreshFileList();
+        Alert.alert('Import Complete', `${importedCount} file${importedCount === 1 ? '' : 's'} imported. Total size: ${(importedSize / (1024 * 1024)).toFixed(2)} MB.`);
+      } catch (zipErr) {
+        console.error('[SettingsScreen] Import: ZIP processing error:', zipErr);
+        Alert.alert('Error', 'Failed to extract ZIP file. The file may be corrupted or not a valid ZIP archive.');
+        return;
       }
-      await refreshFileList();
-      Alert.alert('Import Complete', `${importedCount} file${importedCount === 1 ? '' : 's'} imported. Total size: ${(importedSize / (1024 * 1024)).toFixed(2)} MB.`);
     } catch (err) {
       console.error('[SettingsScreen] Import: Error', err);
       Alert.alert('Error', 'Import failed.');
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -221,8 +359,69 @@ const SettingsScreen = () => {
     );
   };
 
+  const handleClearCorrupted = async () => {
+    if (!derivedKey) {
+      Alert.alert('Error', 'No password set.');
+      return;
+    }
+    
+    Alert.alert(
+      'Clear Corrupted Files',
+      'This will remove files that cannot be decrypted (usually from before recent fixes). This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear Corrupted',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              const files = await FileSystem.listFiles();
+              let deletedCount = 0;
+              
+              for (const file of files) {
+                const fileName = typeof file === 'string' ? file : file.name;
+                if (fileName.endsWith('.metadata.enc')) {
+                  const uuid = fileName.replace('.metadata.enc', '');
+                  try {
+                    await FileManagerService.loadFileMetadata(uuid, derivedKey);
+                    // If we get here, metadata is fine
+                  } catch (e) {
+                    // This metadata file is corrupted, delete the entire file set
+                    try {
+                      await FileSystem.deleteFile(fileName);
+                      deletedCount++;
+                      try {
+                        await FileSystem.deleteFile(`${uuid}.enc`);
+                        deletedCount++;
+                      } catch (e) { /* ignore if doesn't exist */ }
+                      try {
+                        await FileSystem.deleteFile(`${uuid}.preview.enc`);
+                        deletedCount++;
+                      } catch (e) { /* ignore if doesn't exist */ }
+                    } catch (deleteErr) {
+                      console.warn('Failed to delete corrupted file:', fileName, deleteErr);
+                    }
+                  }
+                }
+              }
+              
+              await refreshFileList();
+              Alert.alert('Success', `Cleared ${deletedCount} corrupted file${deletedCount === 1 ? '' : 's'}.`);
+            } catch (error) {
+              console.error('Error clearing corrupted files:', error);
+              Alert.alert('Error', 'Failed to clear corrupted files.');
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
-    <View style={getStyles(theme).container}>
+    <ScrollView style={getStyles(theme).container} contentContainerStyle={getStyles(theme).contentContainer}>
       <Text style={getStyles(theme).title}>Settings</Text>
 
       {/* Log Out (standalone) */}
@@ -257,10 +456,10 @@ const SettingsScreen = () => {
       <TouchableOpacity
         style={[getStyles(theme).deleteButton, { backgroundColor: theme.accentSecondary, marginTop: 12 }]}
         onPress={handleImport}
-        disabled={exporting}
+        disabled={exporting || importing}
       >
         <Icon name="unarchive" size={24} color={theme.chipText} />
-        <Text style={getStyles(theme).deleteButtonText}>Import from ZIP</Text>
+        <Text style={getStyles(theme).deleteButtonText}>{importing ? 'Importing...' : 'Import from ZIP'}</Text>
       </TouchableOpacity>
 
       {/* Danger Zone Section */}
@@ -273,8 +472,16 @@ const SettingsScreen = () => {
         <Icon name="delete-forever" size={24} color={theme.chipText} />
         <Text style={getStyles(theme).deleteButtonText}>Delete All Files</Text>
       </TouchableOpacity>
+      <TouchableOpacity
+        style={[getStyles(theme).deleteButton, deleting && getStyles(theme).deleteButtonDisabled, { marginTop: 12 }, getStyles(theme).clearCorruptedButton]}
+        onPress={handleClearCorrupted}
+        disabled={deleting}
+      >
+        <Icon name="warning" size={24} color={theme.chipText} />
+        <Text style={getStyles(theme).deleteButtonText}>Clear Corrupted Files</Text>
+      </TouchableOpacity>
       {deleting && <ActivityIndicator size="large" color={theme.error} style={{ marginTop: 16 }} />}
-    </View>
+    </ScrollView>
   );
 };
 
@@ -291,9 +498,11 @@ const getStyles = (theme: typeof darkTheme) => StyleSheet.create({
   },
   container: {
     flex: 1,
+    backgroundColor: theme.background,
+  },
+  contentContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.background,
     padding: 24,
   },
   title: {
@@ -319,6 +528,9 @@ const getStyles = (theme: typeof darkTheme) => StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginLeft: 12,
+  },
+  clearCorruptedButton: {
+    backgroundColor: '#ff6b6b', // Red color for destructive action
   },
 });
 

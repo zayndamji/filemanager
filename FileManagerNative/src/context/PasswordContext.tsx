@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { sha256 } from '@noble/hashes/sha256';
+import { pbkdf2 } from '@noble/hashes/pbkdf2';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -8,12 +9,26 @@ let RNSimpleCrypto: any = null;
 if (Platform.OS !== 'web') {
   try {
     RNSimpleCrypto = require('react-native-simple-crypto');
+    // Verify the PBKDF2 function exists
+    if (!RNSimpleCrypto?.PBKDF2?.hash) {
+      console.warn('[PasswordContext] RNSimpleCrypto.PBKDF2.hash not available');
+      RNSimpleCrypto = null;
+    } else {
+      console.log('[PasswordContext] RNSimpleCrypto loaded successfully');
+    }
   } catch (e) {
-    console.warn('Failed to load react-native-simple-crypto:', e);
+    console.warn('[PasswordContext] Failed to load react-native-simple-crypto:', e);
+    RNSimpleCrypto = null;
   }
 }
 
-// Web-native PBKDF2 using SubtleCrypto
+// Cross-platform PBKDF2 using @noble/hashes (more reliable)
+function pbkdf2Noble(password: string, salt: Uint8Array, iterations: number, keyLen: number): Uint8Array {
+  const passwordBytes = new TextEncoder().encode(password);
+  return pbkdf2(sha256, passwordBytes, salt, { c: iterations, dkLen: keyLen });
+}
+
+// Web-native PBKDF2 using SubtleCrypto (backup)
 async function pbkdf2Web(password: string, salt: Uint8Array, iterations: number, keyLen: number, hash: string): Promise<Uint8Array> {
   const enc = new TextEncoder();
   const keyMaterial = await globalThis.crypto.subtle.importKey(
@@ -94,29 +109,48 @@ export function PasswordProvider({ children }: PasswordProviderProps) {
       try {
         const encoder = new TextEncoder();
         const saltBytes = encoder.encode(salt);
-        let key: Uint8Array;
+        let key: Uint8Array | null = null;
         
         if (Platform.OS === 'web') {
+          console.log('[PasswordContext] Using web SubtleCrypto PBKDF2');
           key = await pbkdf2Web(password, saltBytes, 20000, 32, 'SHA-256');
         } else {
-          // Use RNSimpleCrypto.PBKDF2.hash for native
-          if (RNSimpleCrypto) {
-            const keyArray = await RNSimpleCrypto.PBKDF2.hash(
-              password,
-              saltBytes,
-              20000,
-              32,
-              'SHA256'
-            );
-            key = new Uint8Array(keyArray);
+          // Try multiple approaches for native platforms
+          let useNoble = false;
+          
+          if (RNSimpleCrypto && RNSimpleCrypto.PBKDF2 && RNSimpleCrypto.PBKDF2.hash) {
+            try {
+              console.log('[PasswordContext] Attempting RNSimpleCrypto PBKDF2');
+              const keyArray = await RNSimpleCrypto.PBKDF2.hash(
+                password,
+                saltBytes,
+                20000,
+                32,
+                'SHA256'
+              );
+              key = new Uint8Array(keyArray);
+              console.log('[PasswordContext] RNSimpleCrypto PBKDF2 succeeded');
+            } catch (err) {
+              console.warn('[PasswordContext] RNSimpleCrypto PBKDF2 failed:', err);
+              useNoble = true;
+            }
           } else {
-            // Fallback to web implementation if RNSimpleCrypto failed to load
-            key = await pbkdf2Web(password, saltBytes, 20000, 32, 'SHA-256');
+            console.log('[PasswordContext] RNSimpleCrypto.PBKDF2 not available');
+            useNoble = true;
+          }
+          
+          if (useNoble) {
+            console.log('[PasswordContext] Using @noble/hashes PBKDF2');
+            key = pbkdf2Noble(password, saltBytes, 20000, 32);
           }
         }
         
-        setDerivedKey(key);
-        console.log('[PasswordContext] derivedKey set.');
+        if (key) {
+          setDerivedKey(key);
+          console.log('[PasswordContext] derivedKey set:', key);
+        } else {
+          throw new Error('Failed to derive key with all methods');
+        }
       } catch (err) {
         console.error('[PasswordContext] PBKDF2 error:', err);
         setDerivedKey(null);
