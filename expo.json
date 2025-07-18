@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "FileManagerNative",
+    "slug": "filemanager-native",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./ios/FileManagerNative/Images.xcassets/AppIcon.appiconset/1024.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./ios/FileManagerNative/Images.xcassets/AppIcon.appiconset/1024.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "platforms": ["ios", "android", "web"],
+    "web": {
+      "favicon": "./ios/FileManagerNative/Images.xcassets/AppIcon.appiconset/1024.png",
+      "bundler": "metro"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ]
+  }
+}

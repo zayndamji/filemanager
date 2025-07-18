@@ -11,7 +11,9 @@
     "test": "jest",
     "build-ios": "cd ios && xcodebuild -workspace FileManagerNative.xcworkspace -scheme FileManagerNative -configuration Release -destination generic/platform=iOS archive -archivePath FileManagerNative.xcarchive",
     "web": "expo start --web --clear",
-    "build": "npm run web"
+    "web:build": "expo export --platform web",
+    "build": "expo export --platform web",
+    "serve": "npx serve dist -s"
   },
   "dependencies": {
     "@expo/metro-runtime": "~5.0.4",
