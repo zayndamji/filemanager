@@ -8,13 +8,35 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 let RNSimpleCrypto: any = null;
 if (Platform.OS !== 'web') {
   try {
-    RNSimpleCrypto = require('react-native-simple-crypto');
-    // Verify the PBKDF2 function exists
-    if (!RNSimpleCrypto?.PBKDF2?.hash) {
-      console.warn('[PasswordContext] RNSimpleCrypto.PBKDF2.hash not available');
-      RNSimpleCrypto = null;
+    const RNSimpleCryptoModule = require('react-native-simple-crypto');
+    console.log('[PasswordContext] RNSimpleCrypto loaded, checking structure:', Object.keys(RNSimpleCryptoModule));
+    
+    // Check if it's a default export
+    if (RNSimpleCryptoModule.default) {
+      RNSimpleCrypto = RNSimpleCryptoModule.default;
+      console.log('[PasswordContext] Using default export, checking structure:', Object.keys(RNSimpleCrypto));
+      console.log('[PasswordContext] RNSimpleCrypto.PBKDF2:', RNSimpleCrypto.PBKDF2);
+      console.log('[PasswordContext] RNSimpleCrypto.AES:', RNSimpleCrypto.AES);
+      console.log('[PasswordContext] RNSimpleCrypto.SHA:', RNSimpleCrypto.SHA);
+      console.log('[PasswordContext] RNSimpleCrypto.HMAC:', RNSimpleCrypto.HMAC);
+      console.log('[PasswordContext] RNSimpleCrypto.utils:', RNSimpleCrypto.utils);
     } else {
-      console.log('[PasswordContext] RNSimpleCrypto loaded successfully');
+      RNSimpleCrypto = RNSimpleCryptoModule;
+      console.log('[PasswordContext] Using direct export, checking structure:', Object.keys(RNSimpleCrypto));
+      console.log('[PasswordContext] RNSimpleCrypto.PBKDF2:', RNSimpleCrypto.PBKDF2);
+    }
+    
+    // Check for different API structures
+    if (RNSimpleCrypto?.PBKDF2?.hash) {
+      console.log('[PasswordContext] RNSimpleCrypto.PBKDF2.hash available');
+    } else if (RNSimpleCrypto?.PBKDF2) {
+      console.log('[PasswordContext] RNSimpleCrypto.PBKDF2 available but checking type:', typeof RNSimpleCrypto.PBKDF2);
+    } else if (RNSimpleCrypto?.pbkdf2) {
+      console.log('[PasswordContext] RNSimpleCrypto.pbkdf2 available (lowercase)');
+    } else {
+      console.warn('[PasswordContext] RNSimpleCrypto.PBKDF2 not available');
+      console.log('[PasswordContext] Available methods:', Object.keys(RNSimpleCrypto || {}));
+      RNSimpleCrypto = null;
     }
   } catch (e) {
     console.warn('[PasswordContext] Failed to load react-native-simple-crypto:', e);
@@ -51,6 +73,9 @@ async function pbkdf2Web(password: string, salt: Uint8Array, iterations: number,
   return new Uint8Array(derivedBits);
 }
 
+// CRITICAL: Consistent PBKDF2 iterations across ALL platforms for cross-compatibility
+const PBKDF2_ITERATIONS = 50000;
+
 
 interface PasswordContextType {
   password: string;
@@ -72,6 +97,7 @@ export function PasswordProvider({ children }: PasswordProviderProps) {
   const [password, setPassword] = useState<string>('');
   const [salt, setSalt] = useState<string>('');
   const [derivedKey, setDerivedKey] = useState<Uint8Array | null>(null);
+  const [isDerivingKey, setIsDerivingKey] = useState<boolean>(false);
 
   // Load salt from AsyncStorage on mount
   React.useEffect(() => {
@@ -105,49 +131,99 @@ export function PasswordProvider({ children }: PasswordProviderProps) {
       console.log('[PasswordContext] derivedKey set to null (missing password or salt)');
       return;
     }
+    
+    // Avoid re-deriving if already in progress
+    if (isDerivingKey) {
+      console.log('[PasswordContext] Key derivation already in progress, skipping');
+      return;
+    }
+    
     const derive = async () => {
+      setIsDerivingKey(true);
+      const startTime = Date.now();
       try {
-        const encoder = new TextEncoder();
-        const saltBytes = encoder.encode(salt);
         let key: Uint8Array | null = null;
         
         if (Platform.OS === 'web') {
           console.log('[PasswordContext] Using web SubtleCrypto PBKDF2');
-          key = await pbkdf2Web(password, saltBytes, 20000, 32, 'SHA-256');
+          const encoder = new TextEncoder();
+          const saltBytes = encoder.encode(salt);
+          // Use consistent iteration count across all platforms
+          key = await pbkdf2Web(password, saltBytes, PBKDF2_ITERATIONS, 32, 'SHA-256');
         } else {
           // Try multiple approaches for native platforms
           let useNoble = false;
           
-          if (RNSimpleCrypto && RNSimpleCrypto.PBKDF2 && RNSimpleCrypto.PBKDF2.hash) {
+          if (RNSimpleCrypto) {
             try {
               console.log('[PasswordContext] Attempting RNSimpleCrypto PBKDF2');
-              const keyArray = await RNSimpleCrypto.PBKDF2.hash(
-                password,
-                saltBytes,
-                20000,
-                32,
-                'SHA256'
-              );
-              key = new Uint8Array(keyArray);
+              let keyArray;
+              
+              // Try different API structures
+              if (RNSimpleCrypto.PBKDF2 && RNSimpleCrypto.PBKDF2.hash) {
+                // API structure: RNSimpleCrypto.PBKDF2.hash(password, salt, iterations, keyLength, hashAlgorithm)
+                // Use consistent iteration count across all platforms
+                keyArray = await RNSimpleCrypto.PBKDF2.hash(
+                  password,
+                  salt, // Use salt as string, not bytes
+                  PBKDF2_ITERATIONS,
+                  32,
+                  'SHA256'
+                );
+              } else if (RNSimpleCrypto.pbkdf2) {
+                // API structure: RNSimpleCrypto.pbkdf2 (lowercase)
+                keyArray = await RNSimpleCrypto.pbkdf2(
+                  password,
+                  salt,
+                  PBKDF2_ITERATIONS,
+                  32,
+                  'SHA256'
+                );
+              } else if (RNSimpleCrypto.PBKDF2) {
+                // API structure: RNSimpleCrypto.PBKDF2 (direct function)
+                keyArray = await RNSimpleCrypto.PBKDF2(
+                  password,
+                  salt,
+                  PBKDF2_ITERATIONS,
+                  32,
+                  'SHA256'
+                );
+              } else {
+                throw new Error('No supported PBKDF2 method found');
+              }
+              
+              // Convert result to Uint8Array
+              if (keyArray instanceof ArrayBuffer) {
+                key = new Uint8Array(keyArray);
+              } else if (Array.isArray(keyArray)) {
+                key = new Uint8Array(keyArray);
+              } else {
+                key = new Uint8Array(keyArray);
+              }
+              
               console.log('[PasswordContext] RNSimpleCrypto PBKDF2 succeeded');
             } catch (err) {
               console.warn('[PasswordContext] RNSimpleCrypto PBKDF2 failed:', err);
               useNoble = true;
             }
           } else {
-            console.log('[PasswordContext] RNSimpleCrypto.PBKDF2 not available');
+            console.log('[PasswordContext] RNSimpleCrypto not available');
             useNoble = true;
           }
           
           if (useNoble) {
             console.log('[PasswordContext] Using @noble/hashes PBKDF2');
-            key = pbkdf2Noble(password, saltBytes, 20000, 32);
+            const encoder = new TextEncoder();
+            const saltBytes = encoder.encode(salt);
+            // Use consistent iteration count across all platforms
+            key = pbkdf2Noble(password, saltBytes, PBKDF2_ITERATIONS, 32);
           }
         }
         
         if (key) {
           setDerivedKey(key);
-          console.log('[PasswordContext] derivedKey set:', key);
+          const endTime = Date.now();
+          console.log('[PasswordContext] derivedKey set successfully in', endTime - startTime, 'ms');
         } else {
           throw new Error('Failed to derive key with all methods');
         }
@@ -155,10 +231,12 @@ export function PasswordProvider({ children }: PasswordProviderProps) {
         console.error('[PasswordContext] PBKDF2 error:', err);
         setDerivedKey(null);
         console.log('[PasswordContext] derivedKey set to null (PBKDF2 error)');
+      } finally {
+        setIsDerivingKey(false);
       }
     };
     derive();
-  }, [password, salt]);
+  }, [password, salt]); // ✅ Removed isDerivingKey dependency to prevent loop
 
   return (
     <PasswordContext.Provider value={{ password, salt, derivedKey, setPassword, setSalt }}>

@@ -1,5 +1,24 @@
 import { gcm } from '@noble/ciphers/aes';
 import 'react-native-get-random-values';
+import { Platform } from 'react-native';
+
+// Try to use native crypto for better performance on native platforms
+let RNSimpleCrypto: any = null;
+if (Platform.OS !== 'web') {
+  try {
+    const RNSimpleCryptoModule = require('react-native-simple-crypto');
+    // Check if it's a default export
+    if (RNSimpleCryptoModule.default) {
+      RNSimpleCrypto = RNSimpleCryptoModule.default;
+    } else {
+      RNSimpleCrypto = RNSimpleCryptoModule;
+    }
+    console.log('[WebCryptoUtils] RNSimpleCrypto loaded for AES operations');
+  } catch (e) {
+    console.warn('[WebCryptoUtils] Failed to load react-native-simple-crypto, using JS implementation');
+    RNSimpleCrypto = null;
+  }
+}
 
 // encryption constants
 const ivLength = 12; // AES-GCM uses 12 bytes IV
@@ -25,7 +44,38 @@ export const encryptData = async (
     // Convert data to Uint8Array if it's ArrayBuffer
     const dataBytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
     
-    // Use @noble/ciphers for AES-GCM encryption
+    // Try native AES-GCM first for better performance
+    if (RNSimpleCrypto && RNSimpleCrypto.AES && Platform.OS !== 'web') {
+      try {
+        // Note: react-native-simple-crypto only supports AES-128-CBC, not AES-GCM
+        // So we'll fall back to the JS implementation for now
+        console.log('[WebCryptoUtils] RNSimpleCrypto AES available but only supports CBC, using JS implementation');
+        
+        // Fall back to JS implementation
+        const cipher = gcm(key, _iv);
+        const encrypted = cipher.encrypt(dataBytes);
+        
+        // combine iv + encrypted data (no salt needed since key is pre-derived)
+        const output = new Uint8Array(ivLength + encrypted.byteLength);
+        output.set(_iv, 0);
+        output.set(encrypted, ivLength);
+        return output;
+      } catch (nativeError) {
+        console.warn('[WebCryptoUtils] Native AES-GCM failed, falling back to JS:', nativeError);
+        
+        // Fall back to JS implementation
+        const cipher = gcm(key, _iv);
+        const encrypted = cipher.encrypt(dataBytes);
+        
+        // combine iv + encrypted data (no salt needed since key is pre-derived)
+        const output = new Uint8Array(ivLength + encrypted.byteLength);
+        output.set(_iv, 0);
+        output.set(encrypted, ivLength);
+        return output;
+      }
+    }
+    
+    // Use @noble/ciphers for AES-GCM encryption (fallback)
     const cipher = gcm(key, _iv);
     const encrypted = cipher.encrypt(dataBytes);
     
@@ -50,7 +100,33 @@ export const decryptData = async (
     const iv = data.slice(0, ivLength);
     const encrypted = data.slice(ivLength);
     
-    // Use @noble/ciphers for AES-GCM decryption
+    // Try native AES-GCM first for better performance
+    if (RNSimpleCrypto && RNSimpleCrypto.AES && Platform.OS !== 'web') {
+      try {
+        // Convert to ArrayBuffer for react-native-simple-crypto
+        const keyBuffer = key.buffer.slice(key.byteOffset, key.byteOffset + key.byteLength);
+        const ivBuffer = iv.buffer.slice(iv.byteOffset, iv.byteOffset + iv.byteLength);
+        const encryptedBuffer = encrypted.buffer.slice(encrypted.byteOffset, encrypted.byteOffset + encrypted.byteLength);
+        
+        // Note: react-native-simple-crypto only supports AES-128-CBC, not AES-GCM
+        // So we'll fall back to the JS implementation for now
+        console.log('[WebCryptoUtils] RNSimpleCrypto AES available but only supports CBC, using JS implementation');
+        
+        // Fall back to JS implementation
+        const cipher = gcm(key, iv);
+        const decrypted = cipher.decrypt(encrypted);
+        return decrypted.buffer.slice(decrypted.byteOffset, decrypted.byteOffset + decrypted.byteLength);
+      } catch (nativeError) {
+        console.warn('[WebCryptoUtils] Native AES-GCM failed, falling back to JS:', nativeError);
+        
+        // Fall back to JS implementation
+        const cipher = gcm(key, iv);
+        const decrypted = cipher.decrypt(encrypted);
+        return decrypted.buffer.slice(decrypted.byteOffset, decrypted.byteOffset + decrypted.byteLength);
+      }
+    }
+    
+    // Use @noble/ciphers for AES-GCM decryption (fallback)
     const cipher = gcm(key, iv);
     const decrypted = cipher.decrypt(encrypted);
     return decrypted.buffer.slice(decrypted.byteOffset, decrypted.byteOffset + decrypted.byteLength);

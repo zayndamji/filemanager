@@ -229,29 +229,43 @@ const GalleryScreen = () => {
     const start = Date.now();
     const newThumbnails = new Map<string, string>();
 
-    for (const image of images) {
-      const thumbStart = Date.now();
-      try {
-        // Try to load preview first, fallback to full image
-        let imageData = await FileManagerService.getFilePreview(image.uuid, derivedKey);
-        if (!imageData) {
-          // Load full image if no preview
-          const result = await FileManagerService.loadEncryptedFile(image.uuid, derivedKey);
-          imageData = result.fileData;
-        }
-        if (imageData) {
-          const base64String = uint8ArrayToBase64(imageData);
-          const dataUri = `data:${image.metadata.type};base64,${base64String}`;
-          newThumbnails.set(image.uuid, dataUri);
-        }
-        const thumbEnd = Date.now();
-        console.log('[GalleryScreen] Loaded thumbnail for', { uuid: image.uuid, durationMs: thumbEnd - thumbStart, timestamp: thumbEnd });
-      } catch (error) {
-        console.warn('[GalleryScreen] Failed to load thumbnail for', image.metadata.name, error);
-      }
+    // Load thumbnails in parallel batches to avoid overwhelming the system
+    const batchSize = 3; // Process 3 images at a time
+    const batches = [];
+    
+    for (let i = 0; i < images.length; i += batchSize) {
+      batches.push(images.slice(i, i + batchSize));
     }
 
-    setThumbnails(newThumbnails);
+    for (const batch of batches) {
+      const batchPromises = batch.map(async (image) => {
+        const thumbStart = Date.now();
+        try {
+          // Try to load preview first, fallback to full image
+          let imageData = await FileManagerService.getFilePreview(image.uuid, derivedKey);
+          if (!imageData) {
+            // Load full image if no preview
+            const result = await FileManagerService.loadEncryptedFile(image.uuid, derivedKey);
+            imageData = result.fileData;
+          }
+          if (imageData) {
+            const base64String = uint8ArrayToBase64(imageData);
+            const dataUri = `data:${image.metadata.type};base64,${base64String}`;
+            newThumbnails.set(image.uuid, dataUri);
+          }
+          const thumbEnd = Date.now();
+          console.log('[GalleryScreen] Loaded thumbnail for', { uuid: image.uuid, durationMs: thumbEnd - thumbStart, timestamp: thumbEnd });
+        } catch (error) {
+          console.warn('[GalleryScreen] Failed to load thumbnail for', image.metadata.name, error);
+        }
+      });
+      
+      // Wait for current batch to complete before starting the next
+      await Promise.all(batchPromises);
+      
+      // Update UI with loaded thumbnails from this batch
+      setThumbnails(new Map(newThumbnails));
+    }
 
     const end = Date.now();
     console.log('[GalleryScreen] loadThumbnails: END', { count: images.length, durationMs: end - start, timestamp: end });
