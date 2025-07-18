@@ -14,6 +14,16 @@ config.resolver.alias = {
   'process': 'process/browser',
   'events': 'events',
   'react-native-fs': path.resolve(__dirname, 'utils/rnfs.web.js'),
+  // Prevent native-only libraries from being bundled on web
+  'react-native-simple-crypto': false,
+  'react-native-image-resizer': false,
+  'react-native-document-picker': false,
+  'react-native-image-picker': false,
+  'react-native-sound': false,
+  'react-native-video': false,
+  'react-native-share': false,
+  'react-native-randombytes': false,
+  // Add more native-only modules here as needed
 };
 
 // Add extra node modules

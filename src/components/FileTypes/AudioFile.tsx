@@ -1,11 +1,14 @@
 import { FileManagerService } from '../../utils/FileManagerService';
 // audio file renderer component
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
-// native implementation
-import Sound from 'react-native-sound';
+// native implementation - conditionally import Sound for native platforms only
+let Sound: any = null;
+if (Platform.OS !== 'web') {
+  Sound = require('react-native-sound').default || require('react-native-sound');
+}
 function AudioFileNative(props: {
   fileData: Uint8Array;
   mimeType: string;
@@ -14,7 +17,7 @@ function AudioFileNative(props: {
   onClose?: () => void;
 }) {
   const { fileData, mimeType, fileName, onDelete, onClose } = props;
-  const [sound, setSound] = useState<Sound | null>(null);
+  const [sound, setSound] = useState<any>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -34,7 +37,7 @@ function AudioFileNative(props: {
       Sound.setCategory('Playback');
       const tempPath = await FileManagerService.createTempFile(fileData, fileName);
       setTempFilePath(tempPath);
-      const soundInstance = new Sound(tempPath, '', (error) => {
+      const soundInstance = new Sound(tempPath, '', (error: any) => {
         if (error) {
           console.error('failed to load audio:', error);
           Alert.alert('error', 'failed to load audio file');
@@ -67,7 +70,7 @@ function AudioFileNative(props: {
       setIsPlaying(false);
       setIsPaused(true);
     } else {
-      sound.play((success) => {
+      sound.play((success: any) => {
         setIsPlaying(false);
         setIsPaused(false);
       });
@@ -347,7 +350,6 @@ function AudioFileWeb(props: {
   );
 }
 
-import { Platform } from 'react-native';
 export const AudioFile = (props: {
   fileData: Uint8Array;
   mimeType: string;

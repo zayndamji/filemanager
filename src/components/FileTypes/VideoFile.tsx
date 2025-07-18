@@ -1,7 +1,12 @@
 import React from 'react';
 import { Platform, View, Text, StyleSheet } from 'react-native';
-import Video from 'react-native-video';
 import { uint8ArrayToBase64 } from '../../utils/Base64Utils';
+
+// Conditionally import Video for native platforms only
+let Video: any = null;
+if (Platform.OS !== 'web') {
+  Video = require('react-native-video').default || require('react-native-video');
+}
 
 export interface VideoFileProps {
   fileData: Uint8Array;
