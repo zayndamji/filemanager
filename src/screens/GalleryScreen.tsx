@@ -62,6 +62,7 @@ const getStyles = (theme: typeof import('../theme').darkTheme, screenData: { wid
   },
   listContainer: {
     padding: 16,
+    alignItems: 'center',
   },
   emptyContainer: {
     flex: 1,
@@ -69,14 +70,22 @@ const getStyles = (theme: typeof import('../theme').darkTheme, screenData: { wid
     alignItems: 'center',
     padding: 20,
   },
+  galleryContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   row: {
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     marginBottom: 16,
-    paddingHorizontal: 0,
+    paddingHorizontal: 8,
   },
   imageItem: {
     width: screenData.itemSize,
-    marginRight: 16,
+    marginHorizontal: 8,
+    marginVertical: 4,
   },
   imageContainer: {
     width: screenData.itemSize,
@@ -358,7 +367,7 @@ const GalleryScreen = () => {
     const newVisibleItems = new Set(viewableItems.map(item => item.item.uuid));
     setVisibleItems(newVisibleItems);
     
-    // Minimal debounce to avoid excessive calls but stay responsive
+    // Very minimal debounce to avoid excessive calls but stay highly responsive
     setTimeout(() => {
       viewableItems.forEach(({ item }) => {
         // Check current state using refs to avoid stale closures
@@ -366,11 +375,12 @@ const GalleryScreen = () => {
           loadThumbnailRef.current(item);
         }
       });
-    }, 50); // Reduced to 50ms debounce
+    }, 25); // Reduced to 25ms debounce for maximum responsiveness
   }, []); // Empty dependency array to keep callback stable
 
   const viewabilityConfig = {
-    itemVisiblePercentThreshold: 50, // Load when 50% visible
+    itemVisiblePercentThreshold: 5, // Load when just 5% visible (very sensitive)
+    minimumViewTime: 50, // Wait only 50ms to avoid excessive calls
     waitForInteraction: false, // Don't wait - load immediately when visible
   };
 
@@ -585,15 +595,15 @@ const GalleryScreen = () => {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         removeClippedSubviews={true}
-        maxToRenderPerBatch={6}
-        initialNumToRender={6}
-        windowSize={3}
+        maxToRenderPerBatch={8}
+        initialNumToRender={8}
+        windowSize={5}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={refreshFileList} />
         }
         ListEmptyComponent={renderEmptyState}
-        contentContainerStyle={imageFiles.length === 0 ? styles.emptyContainer : undefined}
-        columnWrapperStyle={screenData.numColumns > 1 ? styles.row : undefined}
+        contentContainerStyle={imageFiles.length === 0 ? styles.emptyContainer : styles.galleryContainer}
+        columnWrapperStyle={screenData.numColumns > 1 ? styles.row : { justifyContent: 'center', marginBottom: 16 }}
       />
 
       {/* Image Viewer Modal */}
