@@ -1,5 +1,7 @@
 // file viewer main component and error boundaries
 import React from 'react';
+import { Platform } from 'react-native';
+import { showAlert } from '../utils/AlertUtils';
 // catches errors in the parent tree and displays a fallback ui
 class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: any }> {
   constructor(props: { children: React.ReactNode }) {
@@ -167,7 +169,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
     return rendered;
   };
   const handleDelete = () => {
-    Alert.alert(
+    showAlert(
       'Delete File',
       `Are you sure you want to delete "${metadata.name}"?`,
       [
@@ -213,7 +215,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
       }
     } catch (error) {
       console.error('[FileViewer] Failed to update metadata:', error);
-      Alert.alert('Error', 'Failed to update file metadata');
+      showAlert('Error', 'Failed to update file metadata');
     }
   };
 

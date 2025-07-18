@@ -14,6 +14,7 @@ import { usePasswordContext } from '../context/PasswordContext';
 import { pickDirectory, getWebDirectoryHandle } from '../utils/FileSystem';
 import { useNavigation } from '@react-navigation/native';
 import { ThemeContext } from '../theme';
+import { showAlert } from '../utils/AlertUtils';
 
 const getStyles = (theme: typeof import('../theme').darkTheme) => StyleSheet.create({
   container: {
@@ -85,16 +86,16 @@ const PasswordScreen = () => {
 
   const handleSubmit = () => {
     if (!inputPassword.trim()) {
-      Alert.alert('Error', 'Please enter a password');
+      showAlert('Error', 'Please enter a password');
       return;
     }
     if (!inputSalt.trim()) {
-      Alert.alert('Error', 'Please enter a salt');
+      showAlert('Error', 'Please enter a salt');
       return;
     }
     // On web, require folder selection
     if (Platform.OS === 'web' && !getWebDirectoryHandle()) {
-      Alert.alert('Error', 'Please select a storage folder');
+      showAlert('Error', 'Please select a storage folder');
       return;
     }
     setSalt(inputSalt.trim());
@@ -106,7 +107,7 @@ const PasswordScreen = () => {
     try {
       await pickDirectory();
     } catch (e) {
-      Alert.alert('Error', 'Failed to pick folder: ' + (e as Error).message);
+      showAlert('Error', 'Failed to pick folder: ' + (e as Error).message);
     }
   };
 

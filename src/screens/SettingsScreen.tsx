@@ -11,6 +11,7 @@ import JSZip from 'jszip';
 import { Platform } from 'react-native';
 import * as FileSystem from '../utils/FileSystem';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { showAlert } from '../utils/AlertUtils';
 
 // Conditionally import native libraries
 let Share: any = null;
@@ -67,7 +68,7 @@ const SettingsScreen = () => {
   // Export all decryptable files and their metadata.enc to a ZIP
   const handleExport = async () => {
     if (!derivedKey) {
-      Alert.alert('Error', 'No password set.');
+      showAlert('Error', 'No password set.');
       return;
     }
     setExporting(true);
@@ -99,7 +100,7 @@ const SettingsScreen = () => {
         }
         console.log('[SettingsScreen] Export: Files to export', filesToExport.map(f => f.name));
         if (filesToExport.length === 0) {
-          Alert.alert('No files', 'No decryptable files found.');
+          showAlert('No files', 'No decryptable files found.');
           return;
         }
         // Create ZIP
@@ -121,7 +122,7 @@ const SettingsScreen = () => {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
           }, 100);
-          Alert.alert('Export Complete', 'ZIP file downloaded.');
+          showAlert('Export Complete', 'ZIP file downloaded.');
         } else {
           // Native: Use Share API to let user save/share the ZIP file
           const content = await zip.generateAsync({ type: 'base64' });
@@ -153,11 +154,11 @@ const SettingsScreen = () => {
             
             try {
               const result = await Share.open(shareOptions);
-              Alert.alert('Export Complete', 'ZIP file ready to save or share.');
+              showAlert('Export Complete', 'ZIP file ready to save or share.');
             } catch (shareErr: any) {
               console.error('[SettingsScreen] Share error:', shareErr);
               if (shareErr && shareErr.message && shareErr.message.indexOf('cancelled') === -1) {
-                Alert.alert('Share Error', 'Failed to share the export file. File saved to documents instead.');
+                showAlert('Share Error', 'Failed to share the export file. File saved to documents instead.');
               }
               // User cancelled sharing - this is normal, don't show error
             }
@@ -174,16 +175,16 @@ const SettingsScreen = () => {
             // Fallback: save to documents directory
             const zipFileName = `exported_files_${Date.now()}.zip`;
             await FileSystem.writeFile(zipFileName, content, 'base64');
-            Alert.alert('Export Complete', `ZIP file saved to documents as ${zipFileName}`);
+            showAlert('Export Complete', `ZIP file saved to documents as ${zipFileName}`);
           }
         }
       } catch (err) {
         console.error('[SettingsScreen] Export: Error', err);
-        Alert.alert('Error', 'Export failed.');
+        showAlert('Error', 'Export failed.');
       }
     } catch (err) {
       console.error('[SettingsScreen] Export: Outer error', err);
-      Alert.alert('Error', 'Export failed.');
+      showAlert('Error', 'Export failed.');
     } finally {
       setExporting(false);
     }
@@ -192,7 +193,7 @@ const SettingsScreen = () => {
   // Import ZIP archive and add decryptable files
   const handleImport = async () => {
     if (!derivedKey) {
-      Alert.alert('Error', 'No password set.');
+      showAlert('Error', 'No password set.');
       return;
     }
     setImporting(true);
@@ -215,7 +216,7 @@ const SettingsScreen = () => {
           input.click();
         });
         if (!zipData) {
-          Alert.alert('Import Cancelled', 'No ZIP file selected.');
+          showAlert('Import Cancelled', 'No ZIP file selected.');
           return;
         }
         console.log('[SettingsScreen] Import: ZIP file selected, size:', zipData.length);
@@ -239,7 +240,7 @@ const SettingsScreen = () => {
                 fileContent = await RNFS.readFile(pickedFile.uri, 'base64');
               } catch (e) {
                 console.error('Failed to load RNFS or read file:', e);
-                Alert.alert('Error', 'Failed to read the selected file.');
+                showAlert('Error', 'Failed to read the selected file.');
                 return;
               }
               
@@ -251,25 +252,25 @@ const SettingsScreen = () => {
                 console.log('[SettingsScreen] Import: ZIP file loaded, size:', zipData.length);
               } catch (conversionErr) {
                 console.error('[SettingsScreen] Import: Buffer conversion error:', conversionErr);
-                Alert.alert('Error', 'Failed to process the selected file.');
+                showAlert('Error', 'Failed to process the selected file.');
                 return;
               }
             } else {
-              Alert.alert('Import Cancelled', 'No ZIP file selected.');
+              showAlert('Import Cancelled', 'No ZIP file selected.');
               return;
             }
           } catch (err: any) {
             if (DocumentPicker.isCancel && DocumentPicker.isCancel(err)) {
-              Alert.alert('Import Cancelled', 'File selection was cancelled.');
+              showAlert('Import Cancelled', 'File selection was cancelled.');
               return;
             } else {
               console.error('[SettingsScreen] Import: DocumentPicker error:', err);
-              Alert.alert('Error', 'Failed to select file.');
+              showAlert('Error', 'Failed to select file.');
               return;
             }
           }
         } else {
-          Alert.alert('Error', 'File picker not available on this device.');
+          showAlert('Error', 'File picker not available on this device.');
           return;
         }
       }
@@ -305,15 +306,15 @@ const SettingsScreen = () => {
           }
         }
         await refreshFileList();
-        Alert.alert('Import Complete', `${importedCount} file${importedCount === 1 ? '' : 's'} imported. Total size: ${(importedSize / (1024 * 1024)).toFixed(2)} MB.`);
+        showAlert('Import Complete', `${importedCount} file${importedCount === 1 ? '' : 's'} imported. Total size: ${(importedSize / (1024 * 1024)).toFixed(2)} MB.`);
       } catch (zipErr) {
         console.error('[SettingsScreen] Import: ZIP processing error:', zipErr);
-        Alert.alert('Error', 'Failed to extract ZIP file. The file may be corrupted or not a valid ZIP archive.');
+        showAlert('Error', 'Failed to extract ZIP file. The file may be corrupted or not a valid ZIP archive.');
         return;
       }
     } catch (err) {
       console.error('[SettingsScreen] Import: Error', err);
-      Alert.alert('Error', 'Import failed.');
+      showAlert('Error', 'Import failed.');
     } finally {
       setImporting(false);
     }
@@ -333,7 +334,7 @@ const SettingsScreen = () => {
   };
 
   const handleDeleteAll = async () => {
-    Alert.alert(
+    showAlert(
       'Delete All Files',
       'Are you sure you want to permanently delete ALL files in the app storage? This cannot be undone.',
       [
@@ -347,9 +348,9 @@ const SettingsScreen = () => {
               if (!derivedKey) throw new Error('No password set');
               const deletedCount = await FileManagerService.deleteAllFiles(derivedKey);
               await refreshFileList();
-              Alert.alert('Success', `${deletedCount} file${deletedCount === 1 ? '' : 's'} deleted.`);
+              showAlert('Success', `${deletedCount} file${deletedCount === 1 ? '' : 's'} deleted.`);
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete all files.');
+              showAlert('Error', 'Failed to delete all files.');
             } finally {
               setDeleting(false);
             }
@@ -361,11 +362,11 @@ const SettingsScreen = () => {
 
   const handleClearCorrupted = async () => {
     if (!derivedKey) {
-      Alert.alert('Error', 'No password set.');
+      showAlert('Error', 'No password set.');
       return;
     }
     
-    Alert.alert(
+    showAlert(
       'Clear Corrupted Files',
       'This will remove files that cannot be decrypted (usually from before recent fixes). This action cannot be undone.',
       [
@@ -407,10 +408,10 @@ const SettingsScreen = () => {
               }
               
               await refreshFileList();
-              Alert.alert('Success', `Cleared ${deletedCount} corrupted file${deletedCount === 1 ? '' : 's'}.`);
+              showAlert('Success', `Cleared ${deletedCount} corrupted file${deletedCount === 1 ? '' : 's'}.`);
             } catch (error) {
               console.error('Error clearing corrupted files:', error);
-              Alert.alert('Error', 'Failed to clear corrupted files.');
+              showAlert('Error', 'Failed to clear corrupted files.');
             } finally {
               setDeleting(false);
             }

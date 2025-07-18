@@ -11,6 +11,7 @@ import {
   Modal,
   Alert,
   TextInput,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFileContext } from '../context/FileContext';
@@ -20,6 +21,7 @@ import { uint8ArrayToBase64 } from '../utils/Base64Utils';
 import FileViewer from '../components/FileViewer';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { ThemeContext } from '../theme';
+import { showAlert } from '../utils/AlertUtils';
 
 const { width } = Dimensions.get('window');
 const itemSize = (width - 48) / 3; // 3 columns with spacing
@@ -257,7 +259,7 @@ const GalleryScreen = () => {
 
   const handleImagePress = async (image: EncryptedFile) => {
     if (!derivedKey) {
-      Alert.alert('Error', 'No derived key available. Please enter your password.');
+      showAlert('Error', 'No derived key available. Please enter your password.');
       return;
     }
     try {
@@ -267,7 +269,7 @@ const GalleryScreen = () => {
       setViewerVisible(true);
     } catch (error) {
       console.error('Error loading image:', error);
-      Alert.alert('Error', 'Failed to load image. Please check your password.');
+      showAlert('Error', 'Failed to load image. Please check your password.');
     }
   };
 

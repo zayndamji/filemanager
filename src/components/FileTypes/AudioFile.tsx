@@ -3,6 +3,7 @@ import { FileManagerService } from '../../utils/FileManagerService';
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { showAlert } from '../../utils/AlertUtils';
 
 // native implementation - conditionally import Sound for native platforms only
 let Sound: any = null;
@@ -40,7 +41,7 @@ function AudioFileNative(props: {
       const soundInstance = new Sound(tempPath, '', (error: any) => {
         if (error) {
           console.error('failed to load audio:', error);
-          Alert.alert('error', 'failed to load audio file');
+          showAlert('error', 'failed to load audio file');
           return;
         }
         setSound(soundInstance);
@@ -48,7 +49,7 @@ function AudioFileNative(props: {
       });
     } catch (error) {
       console.error('error initializing audio:', error);
-      Alert.alert('error', 'failed to initialize audio');
+      showAlert('error', 'failed to initialize audio');
     }
   };
 
@@ -95,17 +96,18 @@ function AudioFileNative(props: {
   };
 
   const handleDelete = () => {
-    Alert.alert(
+    showAlert(
       'Delete Audio File',
       `Are you sure you want to delete "${fileName}"?`,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
           text: 'Delete', 
-          style: 'destructive', 
+          style: 'destructive',
           onPress: () => {
-            stopPlayback();
-            onDelete && onDelete();
+            if (onDelete) {
+              onDelete();
+            }
           }
         }
       ]

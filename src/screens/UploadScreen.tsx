@@ -11,6 +11,8 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { showAlert } from '../utils/AlertUtils';
+
 // Conditionally import native-only libraries
 let DocumentPicker: any = null;
 let launchImageLibrary: any = null;
@@ -357,13 +359,13 @@ const UploadScreen = () => {
         };
         input.click();
       } else {
-        Alert.alert('Error', 'File picker not available in this environment');
+        showAlert('Error', 'File picker not available in this environment');
       }
       return;
     }
 
     if (!DocumentPicker) {
-      Alert.alert('Error', 'Document picker not available on this platform');
+      showAlert('Error', 'Document picker not available on this platform');
       return;
     }
 
@@ -381,7 +383,7 @@ const UploadScreen = () => {
         console.log('User cancelled document picker');
       } else {
         console.error('DocumentPicker Error:', error);
-        Alert.alert('Error', 'Failed to pick document');
+        showAlert('Error', 'Failed to pick document');
       }
     }
   };
@@ -415,7 +417,7 @@ const UploadScreen = () => {
         };
         input.click();
       } else {
-        Alert.alert('Error', 'File picker not available in this environment');
+        showAlert('Error', 'File picker not available in this environment');
       }
       return;
     }
@@ -423,7 +425,7 @@ const UploadScreen = () => {
     console.log('[UploadScreen] Using native image picker, launchImageLibrary available:', !!launchImageLibrary);
     
     if (!launchImageLibrary) {
-      Alert.alert('Error', 'Image picker not available on this platform');
+      showAlert('Error', 'Image picker not available on this platform');
       return;
     }
 
@@ -441,7 +443,7 @@ const UploadScreen = () => {
           return;
         }
         if (response.errorCode) {
-          Alert.alert('Error', 'Image picker error: ' + response.errorMessage);
+          showAlert('Error', 'Image picker error: ' + response.errorMessage);
           return;
         }
         if (Array.isArray(response.assets) && response.assets.length > 0) {
@@ -488,7 +490,7 @@ const UploadScreen = () => {
         };
         input.click();
       } else {
-        Alert.alert('Error', 'File picker not available in this environment');
+        showAlert('Error', 'File picker not available in this environment');
       }
       return;
     }
@@ -496,7 +498,7 @@ const UploadScreen = () => {
     console.log('[UploadScreen] Using native video picker, launchImageLibrary available:', !!launchImageLibrary);
     
     if (!launchImageLibrary) {
-      Alert.alert('Error', 'Video picker not available on this platform');
+      showAlert('Error', 'Video picker not available on this platform');
       return;
     }
 
@@ -522,7 +524,7 @@ const UploadScreen = () => {
 
   const encryptAndSaveAllFiles = async () => {
     if (!derivedKey) {
-      Alert.alert('Error', 'No derived key available. Please enter your password.');
+      showAlert('Error', 'No derived key available. Please enter your password.');
       return;
     }
     setUploading(true);
@@ -579,14 +581,14 @@ const UploadScreen = () => {
           metaEditor.tags
         );
       }
-      Alert.alert('Success', `Uploaded and encrypted ${pendingFiles.length} file(s) successfully`);
+      showAlert('Success', `Uploaded and encrypted ${pendingFiles.length} file(s) successfully`);
       setPendingFiles([]);
       metaEditor.setTags([]);
       metaEditor.setFolderPath('');
       await refreshFileList();
     } catch (error) {
       console.error('File upload error:', error);
-      Alert.alert('Error', 'Failed to upload and encrypt files');
+      showAlert('Error', 'Failed to upload and encrypt files');
     } finally {
       setUploading(false);
     }

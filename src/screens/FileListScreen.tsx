@@ -8,6 +8,7 @@ import {
   Alert,
   RefreshControl,
   Modal,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFileContext } from '../context/FileContext';
@@ -16,6 +17,7 @@ import { FileManagerService, EncryptedFile } from '../utils/FileManagerService';
 import FileViewer from '../components/FileViewer';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { ThemeContext } from '../theme';
+import { showAlert } from '../utils/AlertUtils';
 
 const getStyles = (theme: typeof import('../theme').darkTheme) => StyleSheet.create({
   container: {
@@ -224,7 +226,7 @@ const FileListScreen = () => {
 
   const handleFilePress = async (file: EncryptedFile) => {
     if (!derivedKey) {
-      Alert.alert('Error', 'No derived key available. Please enter your password.');
+      showAlert('Error', 'No derived key available. Please enter your password.');
       return;
     }
     const start = Date.now();
@@ -237,7 +239,7 @@ const FileListScreen = () => {
       console.log('[FileListScreen] handleFilePress: Loaded file', { uuid: file.uuid, durationMs: end - start, timestamp: end });
     } catch (error) {
       console.error('[FileListScreen] Error loading file:', error);
-      Alert.alert('Error', 'Failed to load file. Please check your password.');
+      showAlert('Error', 'Failed to load file. Please check your password.');
     }
   };
 
@@ -246,16 +248,16 @@ const FileListScreen = () => {
     try {
       const success = await FileManagerService.deleteEncryptedFile(file.uuid);
       if (success) {
-        Alert.alert('Success', 'File deleted successfully');
+        showAlert('Success', 'File deleted successfully');
         await refreshFileList();
         const end = Date.now();
         console.log('[FileListScreen] handleDeleteFile: Deleted file', { uuid: file.uuid, durationMs: end - start, timestamp: end });
       } else {
-        Alert.alert('Error', 'Failed to delete file');
+        showAlert('Error', 'Failed to delete file');
       }
     } catch (error) {
       console.error('[FileListScreen] Error deleting file:', error);
-      Alert.alert('Error', 'Failed to delete file');
+      showAlert('Error', 'Failed to delete file');
     }
   };
 
@@ -267,7 +269,7 @@ const FileListScreen = () => {
     } else if (typeof folderPathValue === 'string' && (folderPathValue as string).length > 0) {
       folderPathArr = (folderPathValue as string).replace(/^\//, '').split('/');
     }
-    Alert.alert(
+    showAlert(
       file.metadata.name,
       `Size: ${formatFileSize(file.metadata.size)}\nType: ${file.metadata.type}\nFolder: /${folderPathArr.join('/')}`,
       [
