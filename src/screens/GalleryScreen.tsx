@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,10 @@ import {
   Dimensions,
   RefreshControl,
   Modal,
-  Alert,
   TextInput,
-  Platform,
+  Button,
+  ScrollView,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFileContext } from '../context/FileContext';
@@ -209,12 +210,33 @@ const GalleryScreen = () => {
   const [viewerVisible, setViewerVisible] = useState(false);
   const [fileData, setFileData] = useState<Uint8Array | null>(null);
   const [thumbnails, setThumbnails] = useState<Map<string, string>>(new Map());
-  const [maxPreviews, setMaxPreviews] = useState(18);
+  const [visibleItems, setVisibleItems] = useState<Set<string>>(new Set());
+  const [loadingThumbnails, setLoadingThumbnails] = useState<Set<string>>(new Set());
+  const [maxPreviews, setMaxPreviews] = useState(9);
   const [tagSearch, setTagSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   const { theme } = React.useContext(ThemeContext);
   const styles = getStyles(theme);
+
+  // Refs to access current state in stable callbacks
+  const thumbnailsRef = useRef(thumbnails);
+  const loadingThumbnailsRef = useRef(loadingThumbnails);
+  const derivedKeyRef = useRef(derivedKey);
+  const loadThumbnailRef = useRef<((image: EncryptedFile, useBackground?: boolean) => Promise<void>) | null>(null);
+
+  // Update refs when state changes
+  useEffect(() => {
+    thumbnailsRef.current = thumbnails;
+  }, [thumbnails]);
+
+  useEffect(() => {
+    loadingThumbnailsRef.current = loadingThumbnails;
+  }, [loadingThumbnails]);
+
+  useEffect(() => {
+    derivedKeyRef.current = derivedKey;
+  }, [derivedKey]);
 
   useEffect(() => {
     const images = encryptedFiles.filter(file => {
@@ -224,51 +246,100 @@ const GalleryScreen = () => {
     loadThumbnails(images);
   }, [encryptedFiles]);
 
-  const loadThumbnails = async (images: EncryptedFile[]) => {
-    if (!derivedKey) return;
-    const start = Date.now();
-    const newThumbnails = new Map<string, string>();
+  // Cleanup effect to clear thumbnails when component unmounts
+  useEffect(() => {
+    return () => {
+      // Clear thumbnails to free memory
+      setThumbnails(new Map());
+      setLoadingThumbnails(new Set());
+    };
+  }, []);
 
-    // Load thumbnails in parallel batches to avoid overwhelming the system
-    const batchSize = 3; // Process 3 images at a time
-    const batches = [];
-    
-    for (let i = 0; i < images.length; i += batchSize) {
-      batches.push(images.slice(i, i + batchSize));
+  // Lazy load individual thumbnails for visible items with optional background processing
+  const loadThumbnail = useCallback(async (image: EncryptedFile, useBackground = false) => {
+    if (!derivedKeyRef.current || thumbnailsRef.current.has(image.uuid) || loadingThumbnailsRef.current.has(image.uuid)) {
+      return;
     }
 
-    for (const batch of batches) {
-      const batchPromises = batch.map(async (image) => {
+    const newLoadingThumbnails = new Set(loadingThumbnailsRef.current);
+    newLoadingThumbnails.add(image.uuid);
+    setLoadingThumbnails(newLoadingThumbnails);
+
+    const doLoad = async () => {
+      try {
         const thumbStart = Date.now();
-        try {
-          // Try to load preview first, fallback to full image
-          let imageData = await FileManagerService.getFilePreview(image.uuid, derivedKey);
-          if (!imageData) {
-            // Load full image if no preview
-            const result = await FileManagerService.loadEncryptedFile(image.uuid, derivedKey);
-            imageData = result.fileData;
-          }
-          if (imageData) {
-            const base64String = uint8ArrayToBase64(imageData);
-            const dataUri = `data:${image.metadata.type};base64,${base64String}`;
+        // Load preview only - no fallback to full image for performance
+        const imageData = await FileManagerService.getFilePreview(image.uuid, derivedKeyRef.current!);
+        if (imageData) {
+          const base64String = uint8ArrayToBase64(imageData);
+          const dataUri = `data:${image.metadata.type};base64,${base64String}`;
+          
+          setThumbnails(prev => {
+            const newThumbnails = new Map(prev);
             newThumbnails.set(image.uuid, dataUri);
-          }
+            
+            // Limit cache size to prevent memory issues (max 20 thumbnails)
+            if (newThumbnails.size > 20) {
+              const firstKey = newThumbnails.keys().next().value;
+              if (firstKey) {
+                newThumbnails.delete(firstKey);
+              }
+            }
+            
+            return newThumbnails;
+          });
+          
           const thumbEnd = Date.now();
           console.log('[GalleryScreen] Loaded thumbnail for', { uuid: image.uuid, durationMs: thumbEnd - thumbStart, timestamp: thumbEnd });
-        } catch (error) {
-          console.warn('[GalleryScreen] Failed to load thumbnail for', image.metadata.name, error);
+        }
+      } catch (error) {
+        console.warn('[GalleryScreen] Failed to load thumbnail for', image.metadata.name, error);
+      } finally {
+        setLoadingThumbnails(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(image.uuid);
+          return newSet;
+        });
+      }
+    };
+
+    // Use InteractionManager only for background loading, immediate for visible items
+    if (useBackground) {
+      InteractionManager.runAfterInteractions(doLoad);
+    } else {
+      doLoad();
+    }
+  }, []);
+
+  // Store loadThumbnail in ref for stable access
+  loadThumbnailRef.current = loadThumbnail;
+
+  // Handle viewable items changed with minimal debouncing for responsiveness
+  // Use refs to avoid recreating the callback and causing FlatList errors
+  const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: any[] }) => {
+    const newVisibleItems = new Set(viewableItems.map(item => item.item.uuid));
+    setVisibleItems(newVisibleItems);
+    
+    // Minimal debounce to avoid excessive calls but stay responsive
+    setTimeout(() => {
+      viewableItems.forEach(({ item }) => {
+        // Check current state using refs to avoid stale closures
+        if (!thumbnailsRef.current.has(item.uuid) && !loadingThumbnailsRef.current.has(item.uuid) && derivedKeyRef.current && loadThumbnailRef.current) {
+          loadThumbnailRef.current(item);
         }
       });
-      
-      // Wait for current batch to complete before starting the next
-      await Promise.all(batchPromises);
-      
-      // Update UI with loaded thumbnails from this batch
-      setThumbnails(new Map(newThumbnails));
-    }
+    }, 50); // Reduced to 50ms debounce
+  }, []); // Empty dependency array to keep callback stable
 
-    const end = Date.now();
-    console.log('[GalleryScreen] loadThumbnails: END', { count: images.length, durationMs: end - start, timestamp: end });
+  const viewabilityConfig = {
+    itemVisiblePercentThreshold: 50, // Load when 50% visible
+    waitForInteraction: false, // Don't wait - load immediately when visible
+  };
+
+  // Simplified initial load - don't load ANY thumbnails initially for fastest startup
+  const loadThumbnails = async (images: EncryptedFile[]) => {
+    // Do nothing - all thumbnails will be loaded lazily when they become visible
+    console.log('[GalleryScreen] Lazy loading enabled for', images.length, 'images');
   };
 
   const handleImagePress = async (image: EncryptedFile) => {
@@ -287,13 +358,21 @@ const GalleryScreen = () => {
     }
   };
 
-  const renderImageItem = ({ item }: { item: EncryptedFile }) => {
+  const renderImageItem = useCallback(({ item }: { item: EncryptedFile }) => {
     const thumbnailUri = thumbnails.get(item.uuid);
+    const isLoading = loadingThumbnails.has(item.uuid);
     
     return (
       <TouchableOpacity
         style={styles.imageItem}
-        onPress={() => handleImagePress(item)}
+        onPress={() => {
+          if (thumbnailUri) {
+            handleImagePress(item);
+          } else if (!isLoading) {
+            // Load thumbnail on tap if not already loading
+            loadThumbnail(item);
+          }
+        }}
       >
         <View style={styles.imageContainer}>
           {thumbnailUri ? (
@@ -304,14 +383,20 @@ const GalleryScreen = () => {
             />
           ) : (
             <View style={styles.loadingContainer}>
-              <Icon name="image" size={32} color="#ccc" />
-              <Text style={styles.loadingText}>Loading...</Text>
+              <Icon 
+                name={isLoading ? "hourglass-empty" : "image"} 
+                size={32} 
+                color={isLoading ? "#007AFF" : "#ccc"} 
+              />
+              <Text style={styles.loadingText}>
+                {isLoading ? 'Loading...' : 'Tap to load'}
+              </Text>
             </View>
           )}
         </View>
       </TouchableOpacity>
     );
-  };
+  }, [thumbnails, loadingThumbnails, styles]);
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
@@ -458,6 +543,12 @@ const GalleryScreen = () => {
         renderItem={renderImageItem}
         keyExtractor={(item) => item.uuid}
         numColumns={3}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={6}
+        initialNumToRender={6}
+        windowSize={3}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={refreshFileList} />
         }

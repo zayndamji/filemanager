@@ -150,9 +150,9 @@ export class EncryptionUtils {
               return;
             }
             
-            // Calculate new dimensions (max 1200px width for better quality)
-            const maxWidth = 1200;
-            const maxHeight = 1200;
+            // Calculate new dimensions (max 800px for thumbnails - more aggressive compression)
+            const maxWidth = 800;
+            const maxHeight = 800;
             let { width, height } = img;
             
             if (width > height) {
@@ -191,7 +191,7 @@ export class EncryptionUtils {
                 resolve(imageData); // Fallback to original
               };
               reader.readAsArrayBuffer(blob);
-            }, 'image/jpeg', 0.9); // 90% quality for better visual quality
+            }, 'image/jpeg', 0.7); // 70% quality for smaller file size
           };
           
           img.onerror = () => {
@@ -214,13 +214,13 @@ export class EncryptionUtils {
       const base64 = uint8ArrayToBase64(imageData);
       const uri = `data:${mimeType};base64,${base64}`;
 
-      // Resize and compress to max 1200px width for better quality
+      // Resize and compress to max 800px for thumbnails - more aggressive compression
       const resized = await ImageResizer.createResizedImage(
         uri,
-        1200, // Max width 1200px for better quality
-        1200, // Max height 1200px for better quality
+        800, // Max width 800px for smaller thumbnails
+        800, // Max height 800px for smaller thumbnails
         'JPEG', // output format
-        90 // 90% quality for better visual quality
+        70 // 70% quality for smaller file size
       );
 
       // Read resized image as base64
