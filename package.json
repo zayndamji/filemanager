@@ -13,7 +13,7 @@
     "web": "expo start --web --clear",
     "web:build": "expo export --platform web",
     "build": "expo export --platform web",
-    "serve": "npx serve dist -s"
+    "serve": "npx serve dist -s -l 7345"
   },
   "dependencies": {
     "@expo/metro-runtime": "~5.0.4",
