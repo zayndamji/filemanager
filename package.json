@@ -10,7 +10,8 @@
     "start": "react-native start",
     "test": "jest",
     "build-ios": "cd ios && xcodebuild -workspace FileManagerNative.xcworkspace -scheme FileManagerNative -configuration Release -destination generic/platform=iOS archive -archivePath FileManagerNative.xcarchive",
-    "web": "expo start --web"
+    "web": "expo start --web --clear",
+    "build": "npm run web"
   },
   "dependencies": {
     "@expo/metro-runtime": "~5.0.4",
