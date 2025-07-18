@@ -132,7 +132,6 @@ const FileViewer: React.FC<FileViewerProps> = ({
     const mimeType = metadata.type;
     let rendered;
     if (mimeType.startsWith('image/')) {
-      const isPreview = !!(fileData && fileData.byteLength < 100 * 1024);
       rendered = (
         <View style={{
           backgroundColor: theme.surface,
@@ -142,7 +141,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
           borderWidth: 2,
           borderColor: theme.border,
         }}>
-          <ImageFile fileData={fileData} mimeType={mimeType} isPreview={isPreview} style={{ backgroundColor: theme.surface, borderRadius: 8 }} />
+          <ImageFile fileData={fileData} mimeType={mimeType} style={{ backgroundColor: theme.surface, borderRadius: 8 }} />
         </View>
       );
     } else if (mimeType.startsWith('text/') || mimeType === 'application/json') {

@@ -67,7 +67,23 @@ export class EncryptionUtils {
       version: '1.0'
     };
 
-    // Encrypt file data
+    // Create preview for images
+    let encryptedPreview: Uint8Array | null = null;
+    if (mimeType.startsWith('image/')) {
+      const previewStart = Date.now();
+      try {
+        const preview = await this.createImagePreview(fileData, mimeType); // Create compressed preview
+        if (preview) {
+          encryptedPreview = await this.encryptData(preview, key); // Encrypt the preview
+          const previewEnd = Date.now();
+          console.log('[EncryptionUtils] encryptFile: encryptedPreview length', encryptedPreview.length, 'previewDurationMs', previewEnd - previewStart);
+        }
+      } catch (error) {
+        console.warn('[EncryptionUtils] Failed to create preview:', error);
+      }
+    }
+
+    // Encrypt original file data without modification
     const encryptedFile = await this.encryptData(fileData, key);
     console.log('[EncryptionUtils] encryptFile: encryptedFile length', encryptedFile.length);
     
@@ -76,22 +92,6 @@ export class EncryptionUtils {
     const metadataBuffer = new TextEncoder().encode(metadataString);
     const encryptedMetadata = await this.encryptData(metadataBuffer, key);
     console.log('[EncryptionUtils] encryptFile: encryptedMetadata length', encryptedMetadata.length);
-
-    // Create preview for images
-    let encryptedPreview: Uint8Array | null = null;
-    if (mimeType.startsWith('image/')) {
-      const previewStart = Date.now();
-      try {
-        const preview = await this.createImagePreview(fileData, mimeType);
-        if (preview) {
-          encryptedPreview = await this.encryptData(preview, key);
-          const previewEnd = Date.now();
-          console.log('[EncryptionUtils] encryptFile: encryptedPreview length', encryptedPreview.length, 'previewDurationMs', previewEnd - previewStart);
-        }
-      } catch (error) {
-        console.warn('[EncryptionUtils] Failed to create preview:', error);
-      }
-    }
 
     const end = Date.now();
     console.log('[EncryptionUtils] encryptFile: END', { uuid, durationMs: end - start, timestamp: end });
@@ -150,10 +150,10 @@ export class EncryptionUtils {
       // Resize and compress
       const resized = await ImageResizer.createResizedImage(
         uri,
-        400, // max width
-        400, // max height (will scale)
+        800, // Increased max width from 400 to 800
+        800, // Increased max height from 400 to 800
         'JPEG', // output format
-        70 // quality
+        90 // Increased quality from 70 to 90
       );
 
       // Read resized image as base64
