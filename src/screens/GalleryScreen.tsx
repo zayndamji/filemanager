@@ -25,10 +25,21 @@ import { ThemeContext } from '../theme';
 import { showAlert } from '../utils/AlertUtils';
 
 const { width } = Dimensions.get('window');
-const itemSize = (width - 48) / 3; // 3 columns with spacing
-const tallItemHeight = itemSize * 1.5; // Make images tall (1.5x aspect ratio)
 
-const getStyles = (theme: typeof import('../theme').darkTheme) => StyleSheet.create({
+// Responsive column calculation
+const getNumColumns = (screenWidth: number) => {
+  if (screenWidth < 480) return 2;      // Small phones
+  if (screenWidth < 768) return 3;      // Large phones
+  if (screenWidth < 1024) return 4;     // Tablets
+  if (screenWidth < 1440) return 5;     // Small desktop
+  return 6;                             // Large desktop
+};
+
+const numColumns = getNumColumns(width);
+const itemSize = (width - 16 * 2 - (numColumns - 1) * 16) / numColumns; // Account for padding and gaps
+const tallItemHeight = itemSize * 1.2; // Make images slightly tall (1.2x aspect ratio)
+
+const getStyles = (theme: typeof import('../theme').darkTheme, screenData: { width: number, numColumns: number, itemSize: number, tallItemHeight: number }) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.background,
@@ -59,15 +70,17 @@ const getStyles = (theme: typeof import('../theme').darkTheme) => StyleSheet.cre
     padding: 20,
   },
   row: {
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    marginBottom: 16,
+    paddingHorizontal: 0,
   },
   imageItem: {
-    width: itemSize,
-    marginBottom: 16,
+    width: screenData.itemSize,
+    marginRight: 16,
   },
   imageContainer: {
-    width: itemSize,
-    height: tallItemHeight,
+    width: screenData.itemSize,
+    height: screenData.tallItemHeight,
     borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: theme.surface,
@@ -212,12 +225,22 @@ const GalleryScreen = () => {
   const [thumbnails, setThumbnails] = useState<Map<string, string>>(new Map());
   const [visibleItems, setVisibleItems] = useState<Set<string>>(new Set());
   const [loadingThumbnails, setLoadingThumbnails] = useState<Set<string>>(new Set());
-  const [maxPreviews, setMaxPreviews] = useState(9);
+  const [maxPreviews, setMaxPreviews] = useState(18);
   const [tagSearch, setTagSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [screenData, setScreenData] = useState(() => {
+    const { width } = Dimensions.get('window');
+    const cols = getNumColumns(width);
+    return {
+      width,
+      numColumns: cols,
+      itemSize: (width - 16 * 2 - (cols - 1) * 16) / cols,
+      tallItemHeight: ((width - 16 * 2 - (cols - 1) * 16) / cols) * 1.2
+    };
+  });
 
   const { theme } = React.useContext(ThemeContext);
-  const styles = getStyles(theme);
+  const styles = getStyles(theme, screenData);
 
   // Refs to access current state in stable callbacks
   const thumbnailsRef = useRef(thumbnails);
@@ -245,6 +268,21 @@ const GalleryScreen = () => {
     setImageFiles(images);
     loadThumbnails(images);
   }, [encryptedFiles]);
+
+  // Listen for screen dimension changes
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      const cols = getNumColumns(window.width);
+      setScreenData({
+        width: window.width,
+        numColumns: cols,
+        itemSize: (window.width - 16 * 2 - (cols - 1) * 16) / cols,
+        tallItemHeight: ((window.width - 16 * 2 - (cols - 1) * 16) / cols) * 1.2
+      });
+    });
+
+    return () => subscription?.remove();
+  }, []);
 
   // Cleanup effect to clear thumbnails when component unmounts
   useEffect(() => {
@@ -542,7 +580,8 @@ const GalleryScreen = () => {
         }
         renderItem={renderImageItem}
         keyExtractor={(item) => item.uuid}
-        numColumns={3}
+        numColumns={screenData.numColumns}
+        key={`columns-${screenData.numColumns}`} // Force re-render when columns change
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         removeClippedSubviews={true}
@@ -553,8 +592,8 @@ const GalleryScreen = () => {
           <RefreshControl refreshing={loading} onRefresh={refreshFileList} />
         }
         ListEmptyComponent={renderEmptyState}
-        contentContainerStyle={imageFiles.length === 0 ? styles.emptyContainer : styles.listContainer}
-        columnWrapperStyle={imageFiles.length > 0 ? styles.row : undefined}
+        contentContainerStyle={imageFiles.length === 0 ? styles.emptyContainer : undefined}
+        columnWrapperStyle={screenData.numColumns > 1 ? styles.row : undefined}
       />
 
       {/* Image Viewer Modal */}
