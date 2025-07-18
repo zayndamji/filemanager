@@ -133,27 +133,94 @@ export class EncryptionUtils {
     imageData: Uint8Array,
     mimeType: string
   ): Promise<Uint8Array | null> {
-    // Only resize on native platforms - web doesn't have the required libraries
     if (Platform.OS === 'web') {
-      // On web, just return the original image data for now
-      // Could implement canvas-based resizing here if needed
-      return imageData;
+      // Web implementation using Canvas API for resizing
+      return new Promise<Uint8Array | null>((resolve) => {
+        try {
+          const base64 = uint8ArrayToBase64(imageData);
+          const img = new (globalThis as any).Image();
+          
+          img.onload = () => {
+            const canvas = (globalThis as any).document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (!ctx) {
+              console.warn('[EncryptionUtils] Failed to get canvas context');
+              resolve(imageData); // Fallback to original
+              return;
+            }
+            
+            // Calculate new dimensions (max 1200px width for better quality)
+            const maxWidth = 1200;
+            const maxHeight = 1200;
+            let { width, height } = img;
+            
+            if (width > height) {
+              if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+              }
+            } else {
+              if (height > maxHeight) {
+                width = (width * maxHeight) / height;
+                height = maxHeight;
+              }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Draw and compress the image
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Convert to blob with compression (90% quality for better visual quality)
+            canvas.toBlob((blob: Blob | null) => {
+              if (!blob) {
+                console.warn('[EncryptionUtils] Failed to create blob from canvas');
+                resolve(imageData); // Fallback to original
+                return;
+              }
+              
+              const reader = new FileReader();
+              reader.onload = () => {
+                const arrayBuffer = reader.result as ArrayBuffer;
+                resolve(new Uint8Array(arrayBuffer));
+              };
+              reader.onerror = () => {
+                console.warn('[EncryptionUtils] Failed to read blob');
+                resolve(imageData); // Fallback to original
+              };
+              reader.readAsArrayBuffer(blob);
+            }, 'image/jpeg', 0.9); // 90% quality for better visual quality
+          };
+          
+          img.onerror = () => {
+            console.warn('[EncryptionUtils] Failed to load image for preview');
+            resolve(imageData); // Fallback to original
+          };
+          
+          img.src = `data:${mimeType};base64,${base64}`;
+        } catch (error) {
+          console.warn('[EncryptionUtils] Error in web preview creation:', error);
+          resolve(imageData); // Fallback to original
+        }
+      });
     }
     
-    // Resize and compress image to max 400px width, scaled height (native only)
+    // Native implementation using react-native-image-resizer
     try {
       const ImageResizer = require('react-native-image-resizer').default;
       // Convert Uint8Array to base64 string
       const base64 = uint8ArrayToBase64(imageData);
       const uri = `data:${mimeType};base64,${base64}`;
 
-      // Resize and compress
+      // Resize and compress to max 1200px width for better quality
       const resized = await ImageResizer.createResizedImage(
         uri,
-        800, // Increased max width from 400 to 800
-        800, // Increased max height from 400 to 800
+        1200, // Max width 1200px for better quality
+        1200, // Max height 1200px for better quality
         'JPEG', // output format
-        90 // Increased quality from 70 to 90
+        90 // 90% quality for better visual quality
       );
 
       // Read resized image as base64
