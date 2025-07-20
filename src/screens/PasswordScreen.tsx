@@ -140,7 +140,10 @@ const PasswordScreen = () => {
 
           {/* Password & Salt Description */}
           <Text style={{ color: theme.textSecondary, fontSize: 14, marginBottom: 24, textAlign: 'center', width: '100%' }}>
-            Your <Text style={{ fontWeight: 'bold', color: theme.text }}>password</Text> and <Text style={{ fontWeight: 'bold', color: theme.text }}>salt</Text> are used to encrypt and decrypt your files. <br />Choose a strong password and a unique salt for best security.<br />The salt will be saved on this device, while the password should be kept private and secure.<br/>Without your password or salt, you will not be able to access your files.
+            Your <Text style={{ fontWeight: 'bold', color: theme.text }}>password</Text> and <Text style={{ fontWeight: 'bold', color: theme.text }}>salt</Text> are used to encrypt and decrypt your files.{"\n"}
+            Choose a strong password and a unique salt for best security.{"\n"}
+            The salt will be saved on this device, while the password should be kept private and secure.{"\n"}
+            Without your password or salt, you will not be able to access your files.
           </Text>
 
           <TextInput
@@ -165,9 +168,9 @@ const PasswordScreen = () => {
           {Platform.OS === 'web' && (
             <>
               <Text style={{ color: theme.textSecondary, fontSize: 14, marginBottom: 8, textAlign: 'center', width: '100%' }}>
-                <Text style={{ fontWeight: 'bold', color: theme.text }}>Storage Folder</Text> is where all your encrypted files are saved. <br />
-                To access your files in the future, you must choose the same folder. <br />
-                Click the button below to select a folder for storage. <br />
+                <Text style={{ fontWeight: 'bold', color: theme.text }}>Storage Folder</Text> is where all your encrypted files are saved.{"\n"}
+                To access your files in the future, you must choose the same folder.{"\n"}
+                Click the button below to select a folder for storage.{"\n"}
                 You can only access your files in the future if you select the same folder.
               </Text>
 
