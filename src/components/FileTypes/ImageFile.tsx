@@ -32,7 +32,7 @@ const ImageFileNative: React.FC<ImageFileProps> = ({ fileData, mimeType, isPrevi
   }
   
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, style, { flex: 1 }]}>
       <Image
         source={{ uri: dataUri }}
         style={styles.image}
@@ -56,8 +56,21 @@ const ImageFileWeb: React.FC<ImageFileProps> = ({ fileData, mimeType, isPreview 
   }
   
   return (
-    <div style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', borderRadius: 12, padding: 16 }}>
-      <img src={dataUri} alt="image" style={{ maxWidth: '100%', maxHeight: 320, borderRadius: 8 }} />
+    <div style={{ 
+      ...style, 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      borderRadius: 12, 
+      padding: 16,
+      minHeight: 'calc(75vh - 100px)' // Minimum height for image container to fit most of the viewport
+    }}>
+      <img src={dataUri} alt="image" style={{ 
+        maxWidth: '100%', 
+        maxHeight: 'calc(75vh - 100px)', // Limit image height to fit within container and hide file details
+        borderRadius: 8,
+        objectFit: 'contain'
+      }} />
     </div>
   );
 };
@@ -71,14 +84,16 @@ const ImageFile: React.FC<ImageFileProps> = (props) => {
 // styles for image file renderer
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
+    minHeight: height * 0.65, // Minimum height for image container to fit most of the viewport
   },
 
   image: {
     maxWidth: width * 0.9,
-    maxHeight: height * 0.7,
+    maxHeight: height * 0.7, // Limit image height to fit within container and hide file details
     width: width * 0.9,
     height: height * 0.7,
     resizeMode: 'contain',

@@ -189,26 +189,27 @@ const FileViewer: React.FC<FileViewerProps> = ({
           borderWidth: 2,
           borderColor: theme.border,
           position: 'relative',
+          flex: 1, // Take up available space
+          maxHeight: '65%', // Limit image container height to fit most of the viewport and hide file details
         }}>
           <ImageFile 
             fileData={displayData} 
             mimeType={mimeType} 
             isPreview={isShowingPreview}
-            style={{ backgroundColor: theme.surface, borderRadius: 8 }} 
+            style={{ backgroundColor: theme.surface, borderRadius: 8, flex: 1 }} 
           />
           {isLoadingFullImage && isShowingPreview && (
             <View style={{
               position: 'absolute',
               top: 16,
               right: 16,
-              backgroundColor: 'rgba(0, 0, 0, 0.7)',
-              padding: 8,
-              borderRadius: 6,
-              flexDirection: 'row',
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              padding: 6,
+              borderRadius: 12,
               alignItems: 'center',
+              justifyContent: 'center',
             }}>
-              <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-              <Text style={{ color: '#fff', fontSize: 12 }}>Loading full image...</Text>
+              <ActivityIndicator size="small" color="#fff" />
             </View>
           )}
         </View>
