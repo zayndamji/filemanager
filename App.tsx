@@ -8,6 +8,7 @@ import React from 'react';
 import { StatusBar, useColorScheme } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { FileProvider } from './src/context/FileContext';
 import { PasswordProvider } from './src/context/PasswordContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
@@ -21,18 +22,20 @@ function App() {
   }, []);
 
   return (
-    <ThemeProvider>
-      <SafeAreaProvider>
-        <PasswordProvider>
-          <FileProvider>
-            <NavigationContainer>
-              <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-              <AppNavigator />
-            </NavigationContainer>
-          </FileProvider>
-        </PasswordProvider>
-      </SafeAreaProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <SafeAreaProvider>
+          <PasswordProvider>
+            <FileProvider>
+              <NavigationContainer>
+                <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+                <AppNavigator />
+              </NavigationContainer>
+            </FileProvider>
+          </PasswordProvider>
+        </SafeAreaProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 

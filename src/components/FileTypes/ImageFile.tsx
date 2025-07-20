@@ -1,7 +1,8 @@
 // image file renderer component
 import React from 'react';
-import { Platform, View, StyleSheet, Dimensions, ActivityIndicator, Text } from 'react-native';
+import { Platform, View, StyleSheet, Dimensions, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
 import { Image } from 'react-native';
+import { ResumableZoom } from 'react-native-zoom-toolkit';
 import { uint8ArrayToBase64 } from '../../utils/Base64Utils';
 
 // props for image file renderer
@@ -17,6 +18,7 @@ const { width, height } = Dimensions.get('window');
 // Native implementation
 const ImageFileNative: React.FC<ImageFileProps> = ({ fileData, mimeType, isPreview = false, style }) => {
   const [loading, setLoading] = React.useState(true);
+  const zoomRef = React.useRef<any>(null);
   
   // Convert file data to data URI
   const uint8 = fileData instanceof Uint8Array ? fileData : new Uint8Array(fileData);
@@ -30,15 +32,58 @@ const ImageFileNative: React.FC<ImageFileProps> = ({ fileData, mimeType, isPrevi
       </View>
     );
   }
+
+  const handleZoomIn = () => {
+    if (zoomRef.current) {
+      const currentScale = zoomRef.current.getCurrentScale?.() || 1;
+      const newScale = Math.min(currentScale * 1.5, 5);
+      zoomRef.current.zoom(newScale);
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (zoomRef.current) {
+      const currentScale = zoomRef.current.getCurrentScale?.() || 1;
+      const newScale = Math.max(currentScale / 1.5, 1.0);
+      zoomRef.current.zoom(newScale);
+    }
+  };
+
+  const handleResetZoom = () => {
+    if (zoomRef.current) {
+      zoomRef.current.reset();
+    }
+  };
   
   return (
     <View style={[styles.container, style, { flex: 1 }]}>
-      <Image
-        source={{ uri: dataUri }}
-        style={styles.image}
-        resizeMode="contain"
-        onLoadEnd={() => setLoading(false)}
-      />
+      <ResumableZoom
+        ref={zoomRef}
+        minScale={1.0}
+        maxScale={5}
+        style={styles.container}
+      >
+        <Image
+          source={{ uri: dataUri }}
+          style={styles.image}
+          resizeMode="contain"
+          onLoadEnd={() => setLoading(false)}
+        />
+      </ResumableZoom>
+      
+      {/* Zoom Controls */}
+      <View style={styles.zoomControls}>
+        <TouchableOpacity style={styles.zoomButton} onPress={handleZoomOut}>
+          <Text style={styles.zoomButtonText}>-</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.zoomButton} onPress={handleResetZoom}>
+          <Text style={styles.zoomButtonText}>1:1</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.zoomButton} onPress={handleZoomIn}>
+          <Text style={styles.zoomButtonText}>+</Text>
+        </TouchableOpacity>
+      </View>
+      
       {loading ? <ActivityIndicator style={styles.loader} size="small" color="#888" /> : null}
     </View>
   );
@@ -89,6 +134,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'transparent',
     minHeight: height * 0.65, // Minimum height for image container to fit most of the viewport
+    overflow: 'hidden', // Clip content to keep image within bounds
   },
 
   image: {
@@ -105,6 +151,32 @@ const styles = StyleSheet.create({
     left: '50%',
     marginLeft: -10,
     marginTop: -10,
+  },
+
+  zoomControls: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 8,
+    padding: 8,
+    gap: 8,
+  },
+
+  zoomButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  zoomButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
 
