@@ -334,6 +334,53 @@ const UploadScreen = () => {
   const { theme } = React.useContext(ThemeContext);
   const styles = getStyles(theme);
 
+  // Cleanup function to remove temporary files created by ImagePicker
+  const cleanupTempFiles = async () => {
+    if (Platform.OS === 'web' || !RNFS) return;
+    
+    try {
+      // Clean up react-native-image-picker temp files from the app's temp directory
+      // ImagePicker stores files directly in TemporaryDirectoryPath, not in a subdirectory
+      const tempDir = RNFS.TemporaryDirectoryPath;
+      const tempDirExists = await RNFS.exists(tempDir);
+      
+      if (tempDirExists) {
+        const files = await RNFS.readDir(tempDir);
+        
+        // Filter for image picker temp files (they usually have specific patterns)
+        const imagePickerFiles = files.filter((file: any) => 
+          // Image picker files typically have these patterns:
+          file.name.includes('react-native-image-picker') ||
+          file.name.includes('image_picker_') ||
+          file.name.startsWith('tmp_') ||
+          // Also clean up any image files that might be temporary
+          (file.isFile() && /\.(jpg|jpeg|png|gif|heic|webp|mp4|mov|avi)$/i.test(file.name))
+        );
+        
+        console.log(`[UploadScreen] Cleaning up ${imagePickerFiles.length} temporary files from ImagePicker`);
+        
+        // Delete the filtered temp files
+        for (const file of imagePickerFiles) {
+          try {
+            await RNFS.unlink(file.path);
+            console.log(`[UploadScreen] Deleted temp file: ${file.name}`);
+          } catch (error) {
+            console.warn(`[UploadScreen] Failed to delete temp file ${file.name}:`, error);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[UploadScreen] Error during temp file cleanup:', error);
+    }
+  };
+
+  // Cleanup temp files when component unmounts
+  useEffect(() => {
+    return () => {
+      cleanupTempFiles();
+    };
+  }, []);
+
   const handleDocumentPicker = async () => {
     // Use strict platform detection - only web if Platform.OS is explicitly 'web'
     if (Platform.OS === 'web') {
@@ -582,6 +629,10 @@ const UploadScreen = () => {
         );
       }
       showAlert('Success', `Uploaded and encrypted ${pendingFiles.length} file(s) successfully`);
+      
+      // Clean up temporary files after successful upload
+      await cleanupTempFiles();
+      
       setPendingFiles([]);
       metaEditor.setTags([]);
       metaEditor.setFolderPath('');
