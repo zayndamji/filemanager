@@ -74,13 +74,27 @@ const getStyles = (theme: typeof import('../theme').darkTheme) => StyleSheet.cre
 const PasswordScreen = () => {
   const [inputPassword, setInputPassword] = useState('');
   const [inputSalt, setInputSalt] = useState('');
+
   const { setPassword, salt, setSalt } = usePasswordContext();
   const navigation = useNavigation();
   const { theme } = React.useContext(ThemeContext);
 
+  // Track folder selection state and directory handle for web
+  const [folderSelected, setFolderSelected] = useState(() => !!getWebDirectoryHandle());
+  const [currentFolderName, setCurrentFolderName] = useState(() => getWebDirectoryHandle()?.name || 'Not selected');
+
   React.useEffect(() => {
     if (salt) setInputSalt(salt);
   }, [salt]);
+
+  // Update folderSelected and currentFolderName if directory handle changes (web)
+  React.useEffect(() => {
+    if (Platform.OS === 'web') {
+      const handle = getWebDirectoryHandle();
+      setFolderSelected(!!handle);
+      setCurrentFolderName(handle?.name || 'Not selected');
+    }
+  }, []);
 
   const styles = getStyles(theme);
 
@@ -106,6 +120,9 @@ const PasswordScreen = () => {
   const handlePickFolder = async () => {
     try {
       await pickDirectory();
+      const handle = getWebDirectoryHandle();
+      setFolderSelected(!!handle);
+      setCurrentFolderName(handle?.name || 'Not selected');
     } catch (e) {
       showAlert('Error', 'Failed to pick folder: ' + (e as Error).message);
     }
@@ -119,13 +136,19 @@ const PasswordScreen = () => {
       >
         <View style={styles.content}>
           <Text style={styles.title}>Encrypted File Manager</Text>
-          <Text style={styles.subtitle}>Enter your password to continue</Text>
+          <Text style={styles.subtitle}>Enter a password and salt to continue.</Text>
+
+          {/* Password & Salt Description */}
+          <Text style={{ color: theme.textSecondary, fontSize: 14, marginBottom: 24, textAlign: 'center', width: '100%' }}>
+            Your <Text style={{ fontWeight: 'bold', color: theme.text }}>password</Text> and <Text style={{ fontWeight: 'bold', color: theme.text }}>salt</Text> are used to encrypt and decrypt your files. <br />Choose a strong password and a unique salt for best security.<br />The salt will be saved on this device, while the password should be kept private and secure.<br/>Without your password or salt, you will not be able to access your files.
+          </Text>
+
           <TextInput
             style={styles.input}
             secureTextEntry
             value={inputPassword}
             onChangeText={setInputPassword}
-            placeholder="Password"
+            placeholder="Password (should be private and secure)"
             placeholderTextColor={theme.textSecondary}
           />
           <TextInput
@@ -133,21 +156,49 @@ const PasswordScreen = () => {
             secureTextEntry
             value={inputSalt}
             onChangeText={setInputSalt}
-            placeholder="Salt (required, can be edited)"
+            placeholder="Salt (will be saved on this device)"
             placeholderTextColor={theme.textSecondary}
             autoCapitalize="none"
           />
+
+          {/* Storage Folder (Web only) */}
           {Platform.OS === 'web' && (
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: getWebDirectoryHandle() ? theme.accent : '#888' }]}
-              onPress={handlePickFolder}
-            >
-              <Text style={styles.buttonText}>
-                {getWebDirectoryHandle() ? 'Folder Selected' : 'Choose Storage Folder'}
+            <>
+              <Text style={{ color: theme.textSecondary, fontSize: 14, marginBottom: 8, textAlign: 'center', width: '100%' }}>
+                <Text style={{ fontWeight: 'bold', color: theme.text }}>Storage Folder</Text> is where all your encrypted files are saved. <br />
+                To access your files in the future, you must choose the same folder. <br />
+                Click the button below to select a folder for storage. <br />
+                You can only access your files in the future if you select the same folder.
               </Text>
-            </TouchableOpacity>
+
+              <Text style={{ color: theme.textSecondary, fontSize: 14, marginBottom: 24, textAlign: 'center', width: '100%' }}>
+                Current folder: <Text style={{ fontWeight: 'bold', color: theme.text }}>{currentFolderName}</Text>
+              </Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: folderSelected ? theme.inputBackground : theme.accent,
+                    borderColor: theme.inputBorder,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: 'row',
+                    marginBottom: 24,
+                  },
+                ]}
+                onPress={handlePickFolder}
+                activeOpacity={0.8}
+              >
+                <Text style={{ color: theme.text, fontSize: 16, fontWeight: 'bold' }}>
+                  {folderSelected ? 'Choose a Different Storage Folder' : 'Choose Storage Folder'}
+                </Text>
+              </TouchableOpacity>
+            </>
           )}
-          <TouchableOpacity style={styles.button} onPress={handleSubmit}>
+
+          {/* Continue Button */}
+          <TouchableOpacity style={[styles.button, { marginTop: 8, width: '100%' }]} onPress={handleSubmit}>
             <Text style={styles.buttonText}>Continue</Text>
           </TouchableOpacity>
         </View>
