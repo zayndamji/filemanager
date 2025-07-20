@@ -231,6 +231,7 @@ const GalleryScreen = () => {
   const [selectedFile, setSelectedFile] = useState<EncryptedFile | null>(null);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [fileData, setFileData] = useState<Uint8Array | null>(null);
+  const [isPreviewData, setIsPreviewData] = useState(false);
   const [thumbnails, setThumbnails] = useState<Map<string, string>>(new Map());
   const [visibleItems, setVisibleItems] = useState<Set<string>>(new Set());
   const [loadingThumbnails, setLoadingThumbnails] = useState<Set<string>>(new Set());
@@ -396,9 +397,21 @@ const GalleryScreen = () => {
       return;
     }
     try {
+      // For image files, try to load preview first for faster initial display
+      const previewData = await FileManagerService.getFilePreview(image.uuid, derivedKey);
+      if (previewData) {
+        setSelectedFile(image);
+        setFileData(previewData);
+        setIsPreviewData(true);
+        setViewerVisible(true);
+        return;
+      }
+      
+      // Fallback to loading full image if preview is not available
       const result = await FileManagerService.loadEncryptedFile(image.uuid, derivedKey);
       setSelectedFile(image);
       setFileData(result.fileData);
+      setIsPreviewData(false);
       setViewerVisible(true);
     } catch (error) {
       console.error('Error loading image:', error);
@@ -618,6 +631,7 @@ const GalleryScreen = () => {
             metadata={selectedFile.metadata}
             onClose={() => setViewerVisible(false)}
             onMetadataUpdated={refreshFileList}
+            isPreviewData={isPreviewData}
           />
         )}
       </Modal>

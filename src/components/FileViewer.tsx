@@ -32,7 +32,7 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
 }
 // react native and icon imports
 import { Component, ErrorInfo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
 import MetadataEditor from './MetadataEditor/MetadataEditor';
 import { useMetadataEditor } from './MetadataEditor/useMetadataEditor';
 import { darkTheme, ThemeContext } from '../theme';
@@ -46,6 +46,7 @@ import { AudioFile } from './FileTypes/AudioFile';
 import PDFFile from './FileTypes/PDFFile';
 import VideoFile from './FileTypes/VideoFile';
 import { FileMetadata, FileManagerService } from '../utils/FileManagerService';
+import { usePasswordContext } from '../context/PasswordContext';
 
 // props for file viewer
 interface FileViewerProps {
@@ -56,6 +57,7 @@ interface FileViewerProps {
   onDelete?: () => void; // callback for delete
   showDetails?: boolean; // whether to show file details
   onMetadataUpdated?: () => void; // callback after metadata is updated
+  isPreviewData?: boolean; // whether the fileData is just preview data
 }
 
 // catches errors in file viewer only
@@ -97,6 +99,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
   onDelete,
   showDetails = true,
   onMetadataUpdated,
+  isPreviewData = false,
 }) => {
   // Local state for displayed metadata
   const [viewerMetadata, setViewerMetadata] = React.useState<FileMetadata>(metadata);
@@ -130,10 +133,53 @@ const FileViewer: React.FC<FileViewerProps> = ({
     }
   };
   const { theme } = React.useContext(ThemeContext);
+  const { derivedKey } = usePasswordContext();
+  
+  // State for handling image preview/full loading
+  const [imageFullData, setImageFullData] = React.useState<Uint8Array | null>(null);
+  const [isLoadingFullImage, setIsLoadingFullImage] = React.useState(false);
+
+  // Load full image for image files when we only have preview data
+  React.useEffect(() => {
+    const loadFullImage = async () => {
+      if (!metadata.type.startsWith('image/') || !isPreviewData || !viewerMetadata?.uuid) {
+        console.log('[FileViewer] Skipping full image load:', { 
+          isImage: metadata.type.startsWith('image/'), 
+          isPreviewData, 
+          hasUuid: !!viewerMetadata?.uuid 
+        });
+        return;
+      }
+      
+      if (!derivedKey) {
+        console.log('[FileViewer] No derived key available for full image load');
+        return;
+      }
+
+      try {
+        console.log('[FileViewer] Starting full image load for:', viewerMetadata.uuid);
+        setIsLoadingFullImage(true);
+        const result = await FileManagerService.loadEncryptedFile(viewerMetadata.uuid, derivedKey);
+        console.log('[FileViewer] Full image loaded, size:', result.fileData.length);
+        setImageFullData(result.fileData);
+      } catch (error) {
+        console.error('[FileViewer] Error loading full image data:', error);
+      } finally {
+        setIsLoadingFullImage(false);
+      }
+    };
+
+    loadFullImage();
+  }, [metadata.type, isPreviewData, viewerMetadata?.uuid, derivedKey]);
+
   const renderFileContent = () => {
     const mimeType = metadata.type;
     let rendered;
     if (mimeType.startsWith('image/')) {
+      // Use full image if loaded, otherwise use the provided data (which could be preview or full)
+      const displayData = imageFullData || fileData;
+      const isShowingPreview = isPreviewData && !imageFullData;
+      
       rendered = (
         <View style={{
           backgroundColor: theme.surface,
@@ -142,8 +188,29 @@ const FileViewer: React.FC<FileViewerProps> = ({
           padding: 16,
           borderWidth: 2,
           borderColor: theme.border,
+          position: 'relative',
         }}>
-          <ImageFile fileData={fileData} mimeType={mimeType} style={{ backgroundColor: theme.surface, borderRadius: 8 }} />
+          <ImageFile 
+            fileData={displayData} 
+            mimeType={mimeType} 
+            isPreview={isShowingPreview}
+            style={{ backgroundColor: theme.surface, borderRadius: 8 }} 
+          />
+          {isLoadingFullImage && isShowingPreview && (
+            <View style={{
+              position: 'absolute',
+              top: 16,
+              right: 16,
+              backgroundColor: 'rgba(0, 0, 0, 0.7)',
+              padding: 8,
+              borderRadius: 6,
+              flexDirection: 'row',
+              alignItems: 'center',
+            }}>
+              <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+              <Text style={{ color: '#fff', fontSize: 12 }}>Loading full image...</Text>
+            </View>
+          )}
         </View>
       );
     } else if (mimeType.startsWith('text/') || mimeType === 'application/json') {
@@ -194,8 +261,11 @@ const FileViewer: React.FC<FileViewerProps> = ({
   }, [editing, viewerMetadata]);
 
   // --- Save Metadata Handler ---
-  const { derivedKey } = require('../context/PasswordContext').usePasswordContext();
   const handleSaveMetadata = async () => {
+    if (!derivedKey) {
+      showAlert('Error', 'No derived key available.');
+      return;
+    }
     try {
       await FileManagerService.updateFileMetadata(
         metadata.uuid,

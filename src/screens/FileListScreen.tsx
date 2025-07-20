@@ -164,6 +164,7 @@ const FileListScreen = () => {
   const [selectedFile, setSelectedFile] = useState<EncryptedFile | null>(null);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [fileData, setFileData] = useState<Uint8Array | null>(null);
+  const [isPreviewData, setIsPreviewData] = useState(false);
   const { theme } = React.useContext(ThemeContext);
   const styles = getStyles(theme);
 
@@ -231,9 +232,25 @@ const FileListScreen = () => {
     }
     const start = Date.now();
     try {
+      // For image files, try to load preview first for faster initial display
+      if (file.metadata.type.startsWith('image/')) {
+        const previewData = await FileManagerService.getFilePreview(file.uuid, derivedKey);
+        if (previewData) {
+          setSelectedFile(file);
+          setFileData(previewData);
+          setIsPreviewData(true);
+          setViewerVisible(true);
+          const end = Date.now();
+          console.log('[FileListScreen] handleFilePress: Loaded image preview', { uuid: file.uuid, durationMs: end - start, timestamp: end });
+          return;
+        }
+      }
+      
+      // Fallback to loading full file for non-images or when preview is not available
       const result = await FileManagerService.loadEncryptedFile(file.uuid, derivedKey);
       setSelectedFile(file);
       setFileData(result.fileData);
+      setIsPreviewData(false);
       setViewerVisible(true);
       const end = Date.now();
       console.log('[FileListScreen] handleFilePress: Loaded file', { uuid: file.uuid, durationMs: end - start, timestamp: end });
@@ -405,6 +422,7 @@ const FileListScreen = () => {
               handleDeleteFile(selectedFile);
             }}
             onMetadataUpdated={refreshFileList}
+            isPreviewData={isPreviewData}
           />
         )}
       </Modal>
