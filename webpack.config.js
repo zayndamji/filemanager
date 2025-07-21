@@ -14,6 +14,8 @@ module.exports = function (env, argv) {
         'react-native-video': false,
         'react-native-share': false,
         'react-native-randombytes': false,
+        'react-native-gesture-handler': false,
+        'react-native-zoom-toolkit': false,
       },
     },
   };

@@ -2,8 +2,19 @@
 import React from 'react';
 import { Platform, View, StyleSheet, Dimensions, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
 import { Image } from 'react-native';
-import { ResumableZoom } from 'react-native-zoom-toolkit';
 import { uint8ArrayToBase64 } from '../../utils/Base64Utils';
+
+// Conditionally import ResumableZoom only for native platforms
+let ResumableZoom: React.ComponentType<any> = View;
+try {
+  if (Platform.OS !== 'web') {
+    const { ResumableZoom: RZ } = require('react-native-zoom-toolkit');
+    ResumableZoom = RZ;
+  }
+} catch (e) {
+  // Fallback to regular View if zoom toolkit is not available
+  console.warn('ResumableZoom not available, using regular View');
+}
 
 // props for image file renderer
 interface ImageFileProps {

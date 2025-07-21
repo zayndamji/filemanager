@@ -23,6 +23,8 @@ config.resolver.alias = {
   'react-native-video': false,
   'react-native-share': false,
   'react-native-randombytes': false,
+  'react-native-gesture-handler': false,
+  'react-native-zoom-toolkit': false,
   // Add more native-only modules here as needed
 };
 

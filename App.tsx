@@ -5,14 +5,25 @@
 import './src/utils/polyfills.ts';
 
 import React from 'react';
-import { StatusBar, useColorScheme } from 'react-native';
+import { StatusBar, useColorScheme, Platform, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { FileProvider } from './src/context/FileContext';
 import { PasswordProvider } from './src/context/PasswordContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { ThemeProvider } from './src/theme';
+
+// Conditionally import GestureHandlerRootView
+let GestureHandlerRootView: React.ComponentType<any> = View;
+if (Platform.OS !== 'web') {
+  try {
+    const { GestureHandlerRootView: GHRootView } = require('react-native-gesture-handler');
+    GestureHandlerRootView = GHRootView;
+  } catch (e) {
+    // Fallback to regular View if gesture handler is not available
+    console.warn('GestureHandlerRootView not available, using regular View');
+  }
+}
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
