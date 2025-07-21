@@ -58,6 +58,10 @@ interface FileViewerProps {
   showDetails?: boolean; // whether to show file details
   onMetadataUpdated?: () => void; // callback after metadata is updated
   isPreviewData?: boolean; // whether the fileData is just preview data
+  onNavigateNext?: () => void; // callback for navigating to next file
+  onNavigatePrev?: () => void; // callback for navigating to previous file
+  hasNext?: boolean; // whether there is a next file
+  hasPrev?: boolean; // whether there is a previous file
 }
 
 // catches errors in file viewer only
@@ -100,6 +104,10 @@ const FileViewer: React.FC<FileViewerProps> = ({
   showDetails = true,
   onMetadataUpdated,
   isPreviewData = false,
+  onNavigateNext,
+  onNavigatePrev,
+  hasNext = false,
+  hasPrev = false,
 }) => {
   // Local state for displayed metadata
   const [viewerMetadata, setViewerMetadata] = React.useState<FileMetadata>(metadata);
@@ -395,6 +403,33 @@ const FileViewer: React.FC<FileViewerProps> = ({
               </View>
             )}
           </ScrollView>
+
+          {/* Navigation arrows for all file types */}
+          {(onNavigatePrev || onNavigateNext) && (
+            <>
+              {/* Left arrow */}
+              {onNavigatePrev && hasPrev && (
+                <Pressable
+                  style={styles.navArrowLeft}
+                  onPress={onNavigatePrev}
+                  accessibilityLabel="Previous file"
+                >
+                  <WebCompatibleIcon name="keyboard-arrow-left" size={28} color="rgba(255, 255, 255, 0.9)" />
+                </Pressable>
+              )}
+              
+              {/* Right arrow */}
+              {onNavigateNext && hasNext && (
+                <Pressable
+                  style={styles.navArrowRight}
+                  onPress={onNavigateNext}
+                  accessibilityLabel="Next file"
+                >
+                  <WebCompatibleIcon name="keyboard-arrow-right" size={28} color="rgba(255, 255, 255, 0.9)" />
+                </Pressable>
+              )}
+            </>
+          )}
         </View>
       </FileViewerErrorBoundary>
     </GlobalErrorBoundary>
@@ -494,6 +529,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: darkTheme.text,
     flex: 1,
+  },
+  navArrowLeft: {
+    position: 'absolute',
+    left: 16,
+    top: '50%',
+    marginTop: -24,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 24,
+    padding: 12,
+    zIndex: 10,
+    opacity: 0.8,
+  },
+  navArrowRight: {
+    position: 'absolute',
+    right: 16,
+    top: '50%',
+    marginTop: -24,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 24,
+    padding: 12,
+    zIndex: 10,
+    opacity: 0.8,
   },
 });
 

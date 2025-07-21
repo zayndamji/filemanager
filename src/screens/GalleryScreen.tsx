@@ -245,6 +245,7 @@ const GalleryScreen = () => {
   const [maxPreviews, setMaxPreviews] = useState(18);
   const [tagSearch, setTagSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
   const [screenData, setScreenData] = useState(() => {
     const { width } = Dimensions.get('window');
     const cols = getNumColumns(width);
@@ -419,11 +420,44 @@ const GalleryScreen = () => {
     console.log('[GalleryScreen] Lazy loading enabled for', images.length, 'images');
   };
 
+  // Get filtered images for navigation
+  const filteredImages = imageFiles.filter(file =>
+    selectedTags.length === 0
+      ? true
+      : Array.isArray(file.metadata.tags) && selectedTags.every(tag => file.metadata.tags.includes(tag))
+  );
+
+  // Navigation functions for gallery viewer
+  const navigateToNextImage = () => {
+    if (filteredImages.length === 0) return;
+    
+    const nextIndex = (currentImageIndex + 1) % filteredImages.length;
+    const nextImage = filteredImages[nextIndex];
+    setCurrentImageIndex(nextIndex);
+    handleImagePress(nextImage);
+  };
+
+  const navigateToPrevImage = () => {
+    if (filteredImages.length === 0) return;
+    
+    const prevIndex = currentImageIndex === 0 ? filteredImages.length - 1 : currentImageIndex - 1;
+    const prevImage = filteredImages[prevIndex];
+    setCurrentImageIndex(prevIndex);
+    handleImagePress(prevImage);
+  };
+
   const handleImagePress = async (image: EncryptedFile) => {
     if (!derivedKey) {
       showAlert('Error', 'No derived key available. Please enter your password.');
       return;
     }
+    
+    // Set the current image index for navigation
+    const imageIndex = filteredImages.findIndex(img => img.uuid === image.uuid);
+    if (imageIndex >= 0) {
+      setCurrentImageIndex(imageIndex);
+    }
+    
     try {
       // For image files, try to load preview first for faster initial display
       const previewData = await FileManagerService.getFilePreview(image.uuid, derivedKey);
@@ -631,15 +665,7 @@ const GalleryScreen = () => {
       </View>
 
       <FlatList
-        data={
-          imageFiles
-            .filter(file =>
-              selectedTags.length === 0
-                ? true
-                : Array.isArray(file.metadata.tags) && selectedTags.every(tag => file.metadata.tags.includes(tag))
-            )
-            .slice(0, maxPreviews)
-        }
+        data={filteredImages.slice(0, maxPreviews)}
         renderItem={renderImageItem}
         keyExtractor={(item) => item.uuid}
         numColumns={screenData.numColumns}
@@ -654,7 +680,7 @@ const GalleryScreen = () => {
           <RefreshControl refreshing={loading} onRefresh={refreshFileList} />
         }
         ListEmptyComponent={renderEmptyState}
-        contentContainerStyle={imageFiles.length === 0 ? styles.emptyContainer : styles.galleryContainer}
+        contentContainerStyle={filteredImages.length === 0 ? styles.emptyContainer : styles.galleryContainer}
         columnWrapperStyle={screenData.numColumns > 1 ? styles.row : { justifyContent: 'center', marginBottom: 16 }}
       />
 
@@ -671,6 +697,10 @@ const GalleryScreen = () => {
             onClose={() => setViewerVisible(false)}
             onMetadataUpdated={refreshFileList}
             isPreviewData={isPreviewData}
+            onNavigateNext={navigateToNextImage}
+            onNavigatePrev={navigateToPrevImage}
+            hasNext={filteredImages.length > 1}
+            hasPrev={filteredImages.length > 1}
           />
         )}
       </Modal>

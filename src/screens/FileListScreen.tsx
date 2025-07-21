@@ -176,6 +176,7 @@ const FileListScreen = () => {
   const [viewerVisible, setViewerVisible] = useState(false);
   const [fileData, setFileData] = useState<Uint8Array | null>(null);
   const [isPreviewData, setIsPreviewData] = useState(false);
+  const [currentFileIndex, setCurrentFileIndex] = useState<number>(0);
   const { theme } = React.useContext(ThemeContext);
   const styles = getStyles(theme);
 
@@ -205,11 +206,37 @@ const FileListScreen = () => {
     }
   };
 
+  // Navigation functions for file viewer
+  const navigateToNextFile = () => {
+    if (filesInCurrentFolder.length === 0) return;
+    
+    const nextIndex = (currentFileIndex + 1) % filesInCurrentFolder.length;
+    const nextFile = filesInCurrentFolder[nextIndex];
+    setCurrentFileIndex(nextIndex);
+    handleFilePress(nextFile);
+  };
+
+  const navigateToPrevFile = () => {
+    if (filesInCurrentFolder.length === 0) return;
+    
+    const prevIndex = currentFileIndex === 0 ? filesInCurrentFolder.length - 1 : currentFileIndex - 1;
+    const prevFile = filesInCurrentFolder[prevIndex];
+    setCurrentFileIndex(prevIndex);
+    handleFilePress(prevFile);
+  };
+
   const handleFilePress = async (file: EncryptedFile) => {
     if (!derivedKey) {
       showAlert('Error', 'No derived key available. Please enter your password.');
       return;
     }
+    
+    // Set the current file index for navigation
+    const fileIndex = filesInCurrentFolder.findIndex(f => f.uuid === file.uuid);
+    if (fileIndex >= 0) {
+      setCurrentFileIndex(fileIndex);
+    }
+    
     const start = Date.now();
     try {
       // For image files, try to load preview first for faster initial display
@@ -413,6 +440,10 @@ const FileListScreen = () => {
             }}
             onMetadataUpdated={refreshFileList}
             isPreviewData={isPreviewData}
+            onNavigateNext={navigateToNextFile}
+            onNavigatePrev={navigateToPrevFile}
+            hasNext={filesInCurrentFolder.length > 1}
+            hasPrev={filesInCurrentFolder.length > 1}
           />
         )}
       </Modal>
