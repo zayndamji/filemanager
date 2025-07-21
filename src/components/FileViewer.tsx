@@ -1,5 +1,5 @@
 // file viewer main component and error boundaries
-import React from 'react';
+import React, { useState } from 'react';
 import { Platform } from 'react-native';
 import { showAlert } from '../utils/AlertUtils';
 // catches errors in the parent tree and displays a fallback ui
@@ -32,7 +32,7 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
 }
 // react native and icon imports
 import { Component, ErrorInfo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator, InteractionManager } from 'react-native';
 import MetadataEditor from './MetadataEditor/MetadataEditor';
 import { useMetadataEditor } from './MetadataEditor/useMetadataEditor';
 import { darkTheme, ThemeContext } from '../theme';
@@ -112,9 +112,6 @@ const FileViewer: React.FC<FileViewerProps> = ({
   // Local state for displayed metadata
   const [viewerMetadata, setViewerMetadata] = React.useState<FileMetadata>(metadata);
   React.useEffect(() => {
-    setViewerMetadata(metadata);
-  }, [metadata]);
-  React.useEffect(() => {
     console.log('[FileViewer] mounted');
   }, []);
   React.useEffect(() => {
@@ -145,7 +142,96 @@ const FileViewer: React.FC<FileViewerProps> = ({
   
   // State for handling image preview/full loading
   const [imageFullData, setImageFullData] = React.useState<Uint8Array | null>(null);
-  const [isLoadingFullImage, setIsLoadingFullImage] = React.useState(false);
+    const [isLoadingFullImage, setIsLoadingFullImage] = useState(false);
+  const abortControllerRef = React.useRef<AbortController | null>(null);
+  
+  // Navigation debouncing
+  const navigationTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const [isNavigating, setIsNavigating] = React.useState(false);
+
+  // Cleanup function to cancel ongoing image loading
+  const cancelImageLoading = React.useCallback(() => {
+    if (abortControllerRef.current) {
+      console.log('[FileViewer] Cancelling image loading...');
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      // Immediately update loading state to provide instant feedback
+      setIsLoadingFullImage(false);
+      // Clear any loaded full image data to prevent stale data display
+      setImageFullData(null);
+    }
+  }, []);
+
+  // Cancel loading when component unmounts or navigation happens
+  React.useEffect(() => {
+    return () => {
+      cancelImageLoading();
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+    };
+  }, [cancelImageLoading]);
+
+  // Debounced navigation functions
+  const handleNavigateNext = React.useCallback(() => {
+    if (isNavigating) return; // Prevent rapid clicking
+    
+    setIsNavigating(true);
+    cancelImageLoading();
+    
+    // Clear any existing timeout
+    if (navigationTimeoutRef.current) {
+      clearTimeout(navigationTimeoutRef.current);
+    }
+    
+    // Debounce navigation to prevent rapid successive calls
+    navigationTimeoutRef.current = setTimeout(() => {
+      onNavigateNext?.();
+      // Reset navigation state after a brief delay
+      setTimeout(() => setIsNavigating(false), 100);
+    }, 50);
+  }, [isNavigating, cancelImageLoading, onNavigateNext]);
+
+  const handleNavigatePrev = React.useCallback(() => {
+    if (isNavigating) return; // Prevent rapid clicking
+    
+    setIsNavigating(true);
+    cancelImageLoading();
+    
+    // Clear any existing timeout
+    if (navigationTimeoutRef.current) {
+      clearTimeout(navigationTimeoutRef.current);
+    }
+    
+    // Debounce navigation to prevent rapid successive calls
+    navigationTimeoutRef.current = setTimeout(() => {
+      onNavigatePrev?.();
+      // Reset navigation state after a brief delay
+      setTimeout(() => setIsNavigating(false), 100);
+    }, 50);
+  }, [isNavigating, cancelImageLoading, onNavigatePrev]);
+
+  const handleClose = React.useCallback(() => {
+    cancelImageLoading();
+    onClose();
+  }, [cancelImageLoading, onClose]);
+
+  // Handle metadata changes (navigation) - cancel loading and reset image state
+  React.useEffect(() => {
+    if (metadata.uuid !== viewerMetadata.uuid) {
+      console.log('[FileViewer] Metadata UUID changed, cancelling operations and resetting state');
+      cancelImageLoading();
+      setImageFullData(null);
+      setIsNavigating(false); // Reset navigation state on metadata change
+      
+      // Clear any pending navigation timeouts
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+        navigationTimeoutRef.current = null;
+      }
+    }
+    setViewerMetadata(metadata);
+  }, [metadata, viewerMetadata.uuid, cancelImageLoading]);
 
   // Load full image for image files when we only have preview data
   React.useEffect(() => {
@@ -164,21 +250,117 @@ const FileViewer: React.FC<FileViewerProps> = ({
         return;
       }
 
+      // Cancel any existing loading operation
+      cancelImageLoading();
+
+      // Don't start loading if navigation is in progress
+      if (isNavigating) {
+        console.log('[FileViewer] Skipping full image load - navigation in progress');
+        return;
+      }
+
+      // Don't start loading if this is a stale effect (UUID changed during render)
+      if (metadata.uuid !== viewerMetadata.uuid) {
+        console.log('[FileViewer] Skipping full image load - UUID changed during render');
+        return;
+      }
+
       try {
         console.log('[FileViewer] Starting full image load for:', viewerMetadata.uuid);
+        
+        // Create new abort controller for this operation
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+        const currentUuid = viewerMetadata.uuid; // Capture current UUID
+        
         setIsLoadingFullImage(true);
-        const result = await FileManagerService.loadEncryptedFile(viewerMetadata.uuid, derivedKey);
-        console.log('[FileViewer] Full image loaded, size:', result.fileData.length);
+        
+        // Use a more aggressive time-slicing approach
+        const timeSlicedLoad = async () => {
+          console.log('[FileViewer] Using time-sliced loading approach');
+          
+          // First, yield immediately to ensure UI updates
+          await new Promise(resolve => {
+            console.log('[FileViewer] Initial yield for UI update');
+            setTimeout(resolve, 10);
+          });
+          
+          if (abortController.signal.aborted || currentUuid !== viewerMetadata.uuid || isNavigating) {
+            console.log('[FileViewer] Cancelled during initial yield');
+            return null;
+          }
+          
+          // Use requestIdleCallback-like pattern with setTimeout
+          return new Promise<{ fileData: Uint8Array; metadata: any } | null>((resolve, reject) => {
+            const startTime = Date.now();
+            console.log('[FileViewer] Starting time-sliced file load at', startTime);
+            
+            // Break the work into smaller time slices
+            const performWork = async () => {
+              try {
+                console.log('[FileViewer] About to call FileManagerService.loadEncryptedFile');
+                
+                // Simple progress callback - just indicates loading
+                const progressCallback = () => {
+                  // No-op - just indicates activity
+                };
+                
+                const result = await FileManagerService.loadEncryptedFile(
+                  viewerMetadata.uuid, 
+                  derivedKey,
+                  abortController.signal,
+                  progressCallback
+                );
+                console.log('[FileViewer] FileManagerService.loadEncryptedFile completed');
+                resolve(result);
+              } catch (error) {
+                console.log('[FileViewer] FileManagerService.loadEncryptedFile failed:', error);
+                reject(error);
+              }
+            };
+            
+            // Start the work after a small delay to ensure UI responsiveness
+            setTimeout(() => {
+              console.log('[FileViewer] Starting actual file load work');
+              performWork();
+            }, 16); // One frame delay
+          });
+        };
+        
+        const result = await timeSlicedLoad();
+        
+        if (!result) {
+          console.log('[FileViewer] Time-sliced load returned null (cancelled)');
+          return;
+        }
+        
+        // Check if operation was cancelled or UUID changed while loading
+        if (abortController.signal.aborted || currentUuid !== viewerMetadata.uuid || isNavigating) {
+          console.log('[FileViewer] Image loading was cancelled or UUID changed after completion');
+          return;
+        }
+        
+        console.log('[FileViewer] Full image loaded successfully, size:', result.fileData.length);
         setImageFullData(result.fileData);
       } catch (error) {
-        console.error('[FileViewer] Error loading full image data:', error);
+        // Check if we were cancelled during the operation
+        if (abortControllerRef.current?.signal.aborted || (error instanceof Error && error.message?.includes('cancelled'))) {
+          console.log('[FileViewer] Image loading was cancelled during operation:', error instanceof Error ? error.message : error);
+        } else {
+          console.error('[FileViewer] Error loading full image data:', error);
+        }
       } finally {
-        setIsLoadingFullImage(false);
+        // Only update loading state if not cancelled
+        if (!abortControllerRef.current?.signal.aborted && !isNavigating) {
+          console.log('[FileViewer] Setting loading state to false');
+          setIsLoadingFullImage(false);
+        }
+        abortControllerRef.current = null;
       }
     };
 
     loadFullImage();
-  }, [metadata.type, isPreviewData, viewerMetadata?.uuid, derivedKey]);
+  }, [metadata.type, isPreviewData, viewerMetadata?.uuid, derivedKey, cancelImageLoading, isNavigating]);
 
   const renderFileContent = () => {
     const mimeType = metadata.type;
@@ -204,6 +386,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
             fileData={displayData} 
             mimeType={mimeType} 
             isPreview={isShowingPreview}
+            showZoomControls={false}
             style={{ backgroundColor: theme.surface, borderRadius: 8, flex: 1 }} 
           />
           {isLoadingFullImage && isShowingPreview && (
@@ -211,11 +394,9 @@ const FileViewer: React.FC<FileViewerProps> = ({
               position: 'absolute',
               top: 16,
               right: 16,
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              padding: 6,
+              backgroundColor: 'rgba(0, 0, 0, 0.6)',
               borderRadius: 12,
-              alignItems: 'center',
-              justifyContent: 'center',
+              padding: 8,
             }}>
               <ActivityIndicator size="small" color="#fff" />
             </View>
@@ -305,7 +486,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
         <View style={[styles.container, { backgroundColor: theme.background }]}> 
           {/* header section with close, filename, and actions */}
           <View style={[styles.header, { paddingTop: insets.top || 16, minHeight: 56 + (insets.top || 16), flexDirection: 'row', alignItems: 'center' }]}> 
-            <Pressable onPress={onClose} style={styles.closeButton} accessibilityLabel="Close">
+            <Pressable onPress={handleClose} style={styles.closeButton} accessibilityLabel="Close">
               <WebCompatibleIcon name="close" size={24} color="#666" />
             </Pressable>
 
@@ -410,22 +591,32 @@ const FileViewer: React.FC<FileViewerProps> = ({
               {/* Left arrow */}
               {onNavigatePrev && hasPrev && (
                 <Pressable
-                  style={styles.navArrowLeft}
-                  onPress={onNavigatePrev}
+                  style={[styles.navArrowLeft, isNavigating && styles.navArrowDisabled]}
+                  onPress={handleNavigatePrev}
+                  disabled={isNavigating}
                   accessibilityLabel="Previous file"
                 >
-                  <WebCompatibleIcon name="keyboard-arrow-left" size={28} color="rgba(255, 255, 255, 0.9)" />
+                  <WebCompatibleIcon 
+                    name="keyboard-arrow-left" 
+                    size={28} 
+                    color={isNavigating ? "rgba(255, 255, 255, 0.4)" : "rgba(255, 255, 255, 0.9)"} 
+                  />
                 </Pressable>
               )}
               
               {/* Right arrow */}
               {onNavigateNext && hasNext && (
                 <Pressable
-                  style={styles.navArrowRight}
-                  onPress={onNavigateNext}
+                  style={[styles.navArrowRight, isNavigating && styles.navArrowDisabled]}
+                  onPress={handleNavigateNext}
+                  disabled={isNavigating}
                   accessibilityLabel="Next file"
                 >
-                  <WebCompatibleIcon name="keyboard-arrow-right" size={28} color="rgba(255, 255, 255, 0.9)" />
+                  <WebCompatibleIcon 
+                    name="keyboard-arrow-right" 
+                    size={28} 
+                    color={isNavigating ? "rgba(255, 255, 255, 0.4)" : "rgba(255, 255, 255, 0.9)"} 
+                  />
                 </Pressable>
               )}
             </>
@@ -532,7 +723,7 @@ const styles = StyleSheet.create({
   },
   navArrowLeft: {
     position: 'absolute',
-    left: 16,
+    left: 32,
     top: '50%',
     marginTop: -24,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
@@ -543,7 +734,7 @@ const styles = StyleSheet.create({
   },
   navArrowRight: {
     position: 'absolute',
-    right: 16,
+    right: 32,
     top: '50%',
     marginTop: -24,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
@@ -551,6 +742,9 @@ const styles = StyleSheet.create({
     padding: 12,
     zIndex: 10,
     opacity: 0.8,
+  },
+  navArrowDisabled: {
+    opacity: 0.3,
   },
 });
 

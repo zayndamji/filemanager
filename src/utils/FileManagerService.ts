@@ -164,7 +164,12 @@ export class FileManagerService {
   }
 
   // loads an encrypted file from the file system
-  static async loadEncryptedFile(uuid: string, key: Uint8Array): Promise<{
+  static async loadEncryptedFile(
+    uuid: string, 
+    key: Uint8Array, 
+    abortSignal?: AbortSignal, 
+    progressCallback?: () => void  // Simplified callback
+  ): Promise<{
     fileData: Uint8Array;
     metadata: FileMetadata;
   }> {
@@ -173,17 +178,34 @@ export class FileManagerService {
     const filePath = this.getFilePath(uuid, 'file');
     const metadataPath = this.getFilePath(uuid, 'metadata');
 
+    // Check cancellation before starting file operations
+    if (abortSignal?.aborted) {
+      throw new Error('Operation cancelled');
+    }
+
     // Read encrypted file as base64
     let encryptedFile: Uint8Array, encryptedMetadata: Uint8Array;
     if ((Platform.OS as any) === 'web') {
       const fileBase64 = await FileSystem.readFile(`${uuid}.enc`, 'base64');
+      if (abortSignal?.aborted) {
+        throw new Error('Operation cancelled');
+      }
       encryptedFile = base64ToUint8Array(fileBase64);
       const metadataBase64 = await FileSystem.readFile(`${uuid}.metadata.enc`, 'base64');
+      if (abortSignal?.aborted) {
+        throw new Error('Operation cancelled');
+      }
       encryptedMetadata = base64ToUint8Array(metadataBase64);
     } else {
       const fileBase64 = await FileSystem.readFile(`${uuid}.enc`, 'base64');
+      if (abortSignal?.aborted) {
+        throw new Error('Operation cancelled');
+      }
       encryptedFile = base64ToUint8Array(fileBase64);
       const metadataBase64 = await FileSystem.readFile(`${uuid}.metadata.enc`, 'base64');
+      if (abortSignal?.aborted) {
+        throw new Error('Operation cancelled');
+      }
       encryptedMetadata = base64ToUint8Array(metadataBase64);
     }
 
@@ -191,7 +213,9 @@ export class FileManagerService {
     const result = await EncryptionUtils.decryptFile(
       encryptedFile,
       encryptedMetadata,
-      key
+      key,
+      abortSignal,
+      progressCallback
     );
     const end = Date.now();
     console.log('[FileManagerService] loadEncryptedFile: END', { uuid, filePath, metadataPath, durationMs: end - start, timestamp: end });

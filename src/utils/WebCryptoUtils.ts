@@ -2,6 +2,7 @@ import { gcm } from '@noble/ciphers/aes';
 import { cbc } from '@noble/ciphers/aes';
 import 'react-native-get-random-values';
 import { Platform } from 'react-native';
+import { AsyncCrypto } from './AsyncCrypto';
 
 // Try to use native crypto for better performance on native platforms
 let RNSimpleCrypto: any = null;
@@ -111,88 +112,73 @@ export const encryptData = async (
 };
 
 // decrypts data using native AES-CBC with HMAC verification (for performance) or AES-GCM (fallback)
+// Now with simple loading indicator
 export const decryptData = async (
   data: Uint8Array,
-  key: Uint8Array
+  key: Uint8Array,
+  abortSignal?: AbortSignal,
+  progressCallback?: () => void  // Simplified callback
 ): Promise<ArrayBuffer> => {
+  const start = Date.now();
+  console.log('[WebCryptoUtils] decryptData: START', { 
+    dataLength: data?.length, 
+    keyLength: key?.length, 
+    useNativeCrypto, 
+    timestamp: start 
+  });
+
   try {
-    // Fast detection: Most preview files are small and use the old GCM format
-    // Skip native crypto entirely for small files to avoid the buffer conversion issues
-    const minCbcSize = 100000; // Only try native crypto for files > 100KB
-    
-    if (!useNativeCrypto || data.length < minCbcSize) {
-      // Use GCM for small data (previews) or when native crypto unavailable
-      const iv = data.slice(0, 12); // GCM uses 12-byte IV
-      const encrypted = data.slice(12);
-      const cipher = gcm(key, iv);
-      const decrypted = cipher.decrypt(encrypted);
-      return decrypted.buffer.slice(decrypted.byteOffset, decrypted.byteOffset + decrypted.byteLength);
+    // Check for cancellation before starting
+    if (abortSignal?.aborted) {
+      console.log('[WebCryptoUtils] Operation cancelled before starting');
+      throw new Error('Operation cancelled');
     }
+
+    // Force GCM for now to avoid native crypto issues
+    // We'll fall back to GCM since native crypto has base64 conversion issues
+    console.log('[WebCryptoUtils] Using GCM decryption (skipping native crypto due to base64 issues)');
     
-    // Only try native CBC+HMAC for large files (full images, not previews)
-    try {
-      const hmacLength = 32; // SHA-256 HMAC is 32 bytes
-      const iv = data.slice(0, ivLength);
-      const encrypted = data.slice(ivLength, data.length - hmacLength);
-      const hmac = data.slice(data.length - hmacLength);
-      
-      // Quick HMAC verification using native crypto
-      const hmacKey = key.slice(0, 32);
-      const hmacData = new Uint8Array(iv.length + encrypted.length);
-      hmacData.set(iv, 0);
-      hmacData.set(encrypted, iv.length);
-      
-      // Create clean ArrayBuffers to avoid view issues
-      const hmacDataClean = new Uint8Array(hmacData);
-      const hmacKeyClean = new Uint8Array(hmacKey);
-      
-      const hmacDataBase64 = RNSimpleCrypto.utils.convertArrayBufferToBase64(hmacDataClean.buffer);
-      const hmacKeyBase64 = RNSimpleCrypto.utils.convertArrayBufferToBase64(hmacKeyClean.buffer);
-      
-      const computedHmacBase64 = await RNSimpleCrypto.HMAC.hmac256(hmacDataBase64, hmacKeyBase64);
-      const computedHmacBuffer = RNSimpleCrypto.utils.convertBase64ToArrayBuffer(computedHmacBase64);
-      const computedHmac = new Uint8Array(computedHmacBuffer);
-      
-      // Fast HMAC comparison
-      if (hmac.length !== computedHmac.length) {
-        throw new Error('HMAC verification failed');
-      }
-      let isValid = true;
-      for (let i = 0; i < hmac.length; i++) {
-        if (hmac[i] !== computedHmac[i]) {
-          isValid = false;
-          break; // Early exit on mismatch
-        }
-      }
-      if (!isValid) {
-        throw new Error('HMAC verification failed');
-      }
-      
-      // HMAC verified, decrypt using native crypto
-      const keyClean = new Uint8Array(key);
-      const ivClean = new Uint8Array(iv);
-      const encryptedClean = new Uint8Array(encrypted);
-      
-      const keyBase64 = RNSimpleCrypto.utils.convertArrayBufferToBase64(keyClean.buffer);
-      const ivBase64 = RNSimpleCrypto.utils.convertArrayBufferToBase64(ivClean.buffer);
-      const encryptedBase64 = RNSimpleCrypto.utils.convertArrayBufferToBase64(encryptedClean.buffer);
-      
-      const decryptedBase64 = await RNSimpleCrypto.AES.decrypt(encryptedBase64, keyBase64, ivBase64);
-      const decryptedBuffer = RNSimpleCrypto.utils.convertBase64ToArrayBuffer(decryptedBase64);
-      
-      console.log('[WebCryptoUtils] Used native AES-CBC decryption');
-      return decryptedBuffer;
-    } catch (nativeError) {
-      console.warn('[WebCryptoUtils] Native AES-CBC failed, trying GCM fallback:', nativeError);
-    }
-    
-    // Fallback: Use @noble/ciphers for AES-GCM decryption
+    // Use GCM for all data - it's more reliable
     const iv = data.slice(0, 12); // GCM uses 12-byte IV
     const encrypted = data.slice(12);
-    const cipher = gcm(key, iv);
-    const decrypted = cipher.decrypt(encrypted);
+    
+    console.log('[WebCryptoUtils] About to decrypt with GCM', { ivLength: iv.length, encryptedLength: encrypted.length });
+    
+    // Use AsyncCrypto for better UI responsiveness with simple loading
+    console.log('[WebCryptoUtils] Using AsyncCrypto for GCM decryption');
+    
+    // Use the time-sliced approach for large files
+    let decrypted: Uint8Array;
+    if (encrypted.length > 500000) { // > 500KB - use time-slicing
+      console.log('[WebCryptoUtils] Large file detected, using time-sliced approach');
+      decrypted = await AsyncCrypto.decryptGCMAsyncWithProgress(key, iv, encrypted, abortSignal, progressCallback);
+    } else {
+      console.log('[WebCryptoUtils] Regular async approach');
+      decrypted = await AsyncCrypto.decryptGCMAsync(key, iv, encrypted, abortSignal);
+    }
+    
+    console.log('[WebCryptoUtils] AsyncCrypto GCM decryption completed');
+    
+    const end = Date.now();
+    console.log('[WebCryptoUtils] decryptData: SUCCESS', { 
+      durationMs: end - start, 
+      resultLength: decrypted.length,
+      timestamp: end 
+    });
+    
     return decrypted.buffer.slice(decrypted.byteOffset, decrypted.byteOffset + decrypted.byteLength);
+    
   } catch (e) {
+    const end = Date.now();
+    console.error('[WebCryptoUtils] decryptData: ERROR', { 
+      error: e, 
+      durationMs: end - start,
+      timestamp: end 
+    });
+    
+    if (e instanceof Error && e.message === 'Operation cancelled') {
+      throw e;
+    }
     console.error('decryptData: error', e);
     throw e;
   }

@@ -28,10 +28,10 @@ export class EncryptionUtils {
   }
 
   // decrypts data using secure AES-GCM decryption
-  static async decryptData(data: Uint8Array, key: Uint8Array): Promise<ArrayBuffer> {
+  static async decryptData(data: Uint8Array, key: Uint8Array, abortSignal?: AbortSignal, progressCallback?: () => void): Promise<ArrayBuffer> {
     const start = Date.now();
     console.log('[EncryptionUtils] decryptData: START', { dataLength: data?.length, keyLength: key?.length, timestamp: start });
-    const result = await decryptData(data, key);
+    const result = await decryptData(data, key, abortSignal, progressCallback);
     const end = Date.now();
     console.log('[EncryptionUtils] decryptData: END', { durationMs: end - start, timestamp: end });
     return result;
@@ -103,28 +103,62 @@ export class EncryptionUtils {
     };
   }
 
-  // decrypts a file and returns metadata and file data
+  // decrypts a complete file with simple loading indicator
   static async decryptFile(
     encryptedFile: Uint8Array,
     encryptedMetadata: Uint8Array,
-    key: Uint8Array
-  ): Promise<{
-    fileData: Uint8Array;
-    metadata: FileMetadata;
-  }> {
+    key: Uint8Array,
+    abortSignal?: AbortSignal,
+    progressCallback?: () => void  // Simplified callback
+  ): Promise<{ fileData: Uint8Array; metadata: any }> {
     const start = Date.now();
-    console.log('[EncryptionUtils] decryptFile: START', { encryptedFileLength: encryptedFile?.length, encryptedMetadataLength: encryptedMetadata?.length, keyLength: key?.length, timestamp: start });
-    // Decrypt metadata
-    const metadataBuffer = await this.decryptData(encryptedMetadata, key);
+    console.log('[EncryptionUtils] decryptFile: START', { 
+      encryptedFileLength: encryptedFile?.length, 
+      encryptedMetadataLength: encryptedMetadata?.length, 
+      keyLength: key?.length, 
+      timestamp: start,
+      isLargeFile: encryptedFile?.length > 500000
+    });
+    
+    // Check cancellation before starting
+    if (abortSignal?.aborted) {
+      console.log('[EncryptionUtils] decryptFile: Cancelled before starting');
+      throw new Error('Operation cancelled');
+    }
+    
+    // Decrypt metadata first (usually smaller and faster)
+    console.log('[EncryptionUtils] decryptFile: About to decrypt metadata');
+    const metadataStart = Date.now();
+    const metadataBuffer = await this.decryptData(encryptedMetadata, key, abortSignal, progressCallback);
+    const metadataEnd = Date.now();
+    console.log('[EncryptionUtils] decryptFile: Metadata decrypted in', metadataEnd - metadataStart, 'ms');
+    
     const metadataString = new TextDecoder().decode(metadataBuffer);
     const metadata: FileMetadata = JSON.parse(metadataString);
 
+    // Check cancellation before decrypting file data
+    if (abortSignal?.aborted) {
+      console.log('[EncryptionUtils] decryptFile: Cancelled before file data decryption');
+      throw new Error('Operation cancelled');
+    }
+
     // Decrypt file data
-    const fileBuffer = await this.decryptData(encryptedFile, key);
+    console.log('[EncryptionUtils] decryptFile: About to decrypt file data, size:', encryptedFile.length);
+    const fileDataStart = Date.now();
+    const fileBuffer = await this.decryptData(encryptedFile, key, abortSignal, progressCallback);
+    const fileDataEnd = Date.now();
+    console.log('[EncryptionUtils] decryptFile: File data decrypted in', fileDataEnd - fileDataStart, 'ms');
+    
     const fileData = new Uint8Array(fileBuffer);
 
     const end = Date.now();
-    console.log('[EncryptionUtils] decryptFile: END', { uuid: metadata?.uuid, durationMs: end - start, timestamp: end });
+    console.log('[EncryptionUtils] decryptFile: END', { 
+      uuid: metadata?.uuid, 
+      durationMs: end - start, 
+      timestamp: end,
+      metadataDecryptMs: metadataEnd - metadataStart,
+      fileDataDecryptMs: fileDataEnd - fileDataStart
+    });
     return { fileData, metadata };
   }
 

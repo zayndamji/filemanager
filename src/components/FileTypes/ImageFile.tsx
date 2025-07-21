@@ -22,12 +22,13 @@ interface ImageFileProps {
   mimeType: string; // mime type of image
   isPreview?: boolean; // whether to render as preview
   style?: any; // optional style for root View
+  showZoomControls?: boolean; // whether to show zoom controls (default: true)
 }
 
 const { width, height } = Dimensions.get('window');
 
 // Native implementation
-const ImageFileNative: React.FC<ImageFileProps> = ({ fileData, mimeType, isPreview = false, style }) => {
+const ImageFileNative: React.FC<ImageFileProps> = ({ fileData, mimeType, isPreview = false, style, showZoomControls = true }) => {
   const [loading, setLoading] = React.useState(true);
   const zoomRef = React.useRef<any>(null);
   
@@ -83,17 +84,19 @@ const ImageFileNative: React.FC<ImageFileProps> = ({ fileData, mimeType, isPrevi
       </ResumableZoom>
       
       {/* Zoom Controls */}
-      <View style={styles.zoomControls}>
-        <TouchableOpacity style={styles.zoomButton} onPress={handleZoomOut}>
-          <Text style={styles.zoomButtonText}>-</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.zoomButton} onPress={handleResetZoom}>
-          <Text style={styles.zoomButtonText}>1:1</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.zoomButton} onPress={handleZoomIn}>
-          <Text style={styles.zoomButtonText}>+</Text>
-        </TouchableOpacity>
-      </View>
+      {showZoomControls && (
+        <View style={styles.zoomControls}>
+          <TouchableOpacity style={styles.zoomButton} onPress={handleZoomOut}>
+            <Text style={styles.zoomButtonText}>-</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.zoomButton} onPress={handleResetZoom}>
+            <Text style={styles.zoomButtonText}>1:1</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.zoomButton} onPress={handleZoomIn}>
+            <Text style={styles.zoomButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       
       {loading ? <ActivityIndicator style={styles.loader} size="small" color="#888" /> : null}
     </View>
@@ -101,7 +104,7 @@ const ImageFileNative: React.FC<ImageFileProps> = ({ fileData, mimeType, isPrevi
 };
 
 // Web implementation
-const ImageFileWeb: React.FC<ImageFileProps> = ({ fileData, mimeType, isPreview = false, style }) => {
+const ImageFileWeb: React.FC<ImageFileProps> = ({ fileData, mimeType, isPreview = false, style, showZoomControls = true }) => {
   // Convert file data to data URI
   const uint8 = fileData instanceof Uint8Array ? fileData : new Uint8Array(fileData);
   const base64String = uint8ArrayToBase64(uint8);
