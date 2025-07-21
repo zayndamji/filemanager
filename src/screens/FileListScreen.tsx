@@ -16,6 +16,7 @@ import { usePasswordContext } from '../context/PasswordContext';
 import { FileManagerService, EncryptedFile } from '../utils/FileManagerService';
 import FileViewer from '../components/FileViewer';
 import WebCompatibleIcon from '../components/WebCompatibleIcon';
+import SortDropdown from '../components/SortDropdown';
 import { ThemeContext } from '../theme';
 import { showAlert } from '../utils/AlertUtils';
 
@@ -47,6 +48,12 @@ const getStyles = (theme: typeof import('../theme').darkTheme) => StyleSheet.cre
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
+    marginBottom: 12,
+  },
+  headerControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   breadcrumbLabel: {
     fontSize: 12,
@@ -158,7 +165,11 @@ const FileListScreen = () => {
     refreshFileList, 
     currentFolderPath, 
     setCurrentFolderPath, 
-    loading 
+    loading,
+    sortBy,
+    setSortBy,
+    filesInCurrentFolder,
+    subfolders
   } = useFileContext();
   const { derivedKey } = usePasswordContext();
   const [selectedFile, setSelectedFile] = useState<EncryptedFile | null>(null);
@@ -167,37 +178,6 @@ const FileListScreen = () => {
   const [isPreviewData, setIsPreviewData] = useState(false);
   const { theme } = React.useContext(ThemeContext);
   const styles = getStyles(theme);
-
-  // Compute subfolders and files in current folder from encryptedFiles and currentFolderPath
-  const currentPathStr = '/' + currentFolderPath.join('/');
-  const normalizedCurrentPath = currentFolderPath.length === 0 ? '/' : currentPathStr;
-  // Find all subfolders in current folder
-  const subfoldersSet = new Set<string>();
-  const filesInCurrentFolder: EncryptedFile[] = [];
-  encryptedFiles.forEach(file => {
-    let folderPathArr: string[] = [];
-    const folderPathValue = file.metadata.folderPath;
-    if (Array.isArray(folderPathValue)) {
-      folderPathArr = folderPathValue;
-    } else if (typeof folderPathValue === 'string' && (folderPathValue as string).length > 0) {
-      folderPathArr = (folderPathValue as string).replace(/^\//, '').split('/');
-    }
-    const folderPathStr = '/' + folderPathArr.join('/');
-    // If file is in current folder
-    if (folderPathStr === normalizedCurrentPath) {
-      filesInCurrentFolder.push(file);
-    }
-    // If file is in a subfolder of current folder, add subfolder name
-    if (
-      folderPathArr.length > currentFolderPath.length &&
-      folderPathArr.slice(0, currentFolderPath.length).join('/') === currentFolderPath.join('/')
-    ) {
-      // Next subfolder name
-      const nextFolder = folderPathArr[currentFolderPath.length];
-      if (nextFolder) subfoldersSet.add(nextFolder);
-    }
-  });
-  const subfolders = Array.from(subfoldersSet).sort();
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -390,6 +370,16 @@ const FileListScreen = () => {
               <Text style={styles.upButtonText}>Up</Text>
             </TouchableOpacity>
           )}
+        </View>
+
+        {/* Header Controls */}
+        <View style={styles.headerControls}>
+          <View /> {/* Empty spacer for alignment */}
+          <SortDropdown 
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            theme={theme}
+          />
         </View>
       </View>
 

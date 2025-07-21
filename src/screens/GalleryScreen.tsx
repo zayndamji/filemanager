@@ -15,12 +15,13 @@ import {
   InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFileContext } from '../context/FileContext';
+import { useFileContext, SortOption } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
 import { FileManagerService, EncryptedFile } from '../utils/FileManagerService';
 import { uint8ArrayToBase64 } from '../utils/Base64Utils';
 import FileViewer from '../components/FileViewer';
 import WebCompatibleIcon from '../components/WebCompatibleIcon';
+import SortDropdown from '../components/SortDropdown';
 import { ThemeContext } from '../theme';
 import { showAlert } from '../utils/AlertUtils';
 
@@ -59,6 +60,12 @@ const getStyles = (theme: typeof import('../theme').darkTheme, screenData: { wid
     fontSize: 14,
     color: theme.textSecondary,
     marginTop: 4,
+  },
+  headerControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
   },
   listContainer: {
     padding: 16,
@@ -225,7 +232,7 @@ const getStyles = (theme: typeof import('../theme').darkTheme, screenData: { wid
 });
 
 const GalleryScreen = () => {
-  const { encryptedFiles, refreshFileList, loading } = useFileContext();
+  const { encryptedFiles, refreshFileList, loading, sortBy, setSortBy } = useFileContext();
   const { password, derivedKey } = usePasswordContext();
   const [imageFiles, setImageFiles] = useState<EncryptedFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<EncryptedFile | null>(null);
@@ -271,13 +278,34 @@ const GalleryScreen = () => {
     derivedKeyRef.current = derivedKey;
   }, [derivedKey]);
 
+  // Sort files function (same as in FileContext but for images only)
+  const sortImageFiles = (files: EncryptedFile[], sortOption: SortOption): EncryptedFile[] => {
+    const sortedFiles = [...files];
+    
+    switch (sortOption) {
+      case 'name':
+        return sortedFiles.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+      case 'lastModified':
+        return sortedFiles.sort((a, b) => {
+          const aDate = new Date(a.metadata.encryptedAt);
+          const bDate = new Date(b.metadata.encryptedAt);
+          return bDate.getTime() - aDate.getTime(); // Most recent first
+        });
+      case 'uuid':
+        return sortedFiles.sort((a, b) => a.uuid.localeCompare(b.uuid));
+      default:
+        return sortedFiles;
+    }
+  };
+
   useEffect(() => {
     const images = encryptedFiles.filter(file => {
       return file.metadata.type.startsWith('image/');
     });
-    setImageFiles(images);
-    loadThumbnails(images);
-  }, [encryptedFiles]);
+    const sortedImages = sortImageFiles(images, sortBy);
+    setImageFiles(sortedImages);
+    loadThumbnails(sortedImages);
+  }, [encryptedFiles, sortBy]);
 
   // Listen for screen dimension changes
   useEffect(() => {
@@ -472,6 +500,17 @@ const GalleryScreen = () => {
       <View style={styles.header}>
         <Text style={styles.title}>Gallery</Text>
         <Text style={styles.subtitle}>{imageFiles.length} encrypted images</Text>
+        
+        {/* Header Controls with Sort Dropdown */}
+        <View style={styles.headerControls}>
+          <View /> {/* Empty spacer for alignment */}
+          <SortDropdown 
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            theme={theme}
+          />
+        </View>
+        
         {/* Tag search bar */}
         <View style={styles.searchBarRow}>
           <TextInput

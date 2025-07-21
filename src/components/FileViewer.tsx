@@ -346,7 +346,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Encrypted:</Text>
-                  <Text style={styles.detailValue}>{new Date(viewerMetadata.encryptedAt).toLocaleDateString()}</Text>
+                  <Text style={styles.detailValue}>{new Date(viewerMetadata.encryptedAt).toLocaleString()}</Text>
                 </View>
                 {!!(viewerMetadata.tags && viewerMetadata.tags.length > 0) ? (
                   <View style={styles.detailRow}>
