@@ -21,6 +21,7 @@ interface SortDropdownProps {
 const sortOptions: { value: SortOption; label: string }[] = [
   { value: 'name', label: 'Sort by Name' },
   { value: 'lastModified', label: 'Sort by Last Modified' },
+  { value: 'size', label: 'Sort by Size' },
   { value: 'uuid', label: 'Sort by UUID' },
 ];
 

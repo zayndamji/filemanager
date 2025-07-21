@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePasswordContext } from './PasswordContext';
 import { FileManagerService, EncryptedFile } from '../utils/FileManagerService';
 
-export type SortOption = 'name' | 'lastModified' | 'uuid';
+export type SortOption = 'name' | 'lastModified' | 'uuid' | 'size';
 
 interface FileContextType {
   encryptedFiles: EncryptedFile[];
@@ -95,6 +95,8 @@ export function FileProvider({ children }: FileProviderProps) {
         });
       case 'uuid':
         return sortedFiles.sort((a, b) => a.uuid.localeCompare(b.uuid));
+      case 'size':
+        return sortedFiles.sort((a, b) => b.metadata.size - a.metadata.size); // Largest first
       default:
         return sortedFiles;
     }
