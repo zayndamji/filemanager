@@ -45,7 +45,6 @@ import TextFile from './FileTypes/TextFile';
 import { AudioFile } from './FileTypes/AudioFile';
 import PDFFile from './FileTypes/PDFFile';
 import VideoFile from './FileTypes/VideoFile';
-import StreamingVideoFile from './FileTypes/StreamingVideoFile';
 import { FileMetadata, FileManagerService } from '../utils/FileManagerService';
 import { useFileManagerService } from '../hooks/useFileManagerService';
 import { usePasswordContext } from '../context/PasswordContext';
@@ -478,31 +477,12 @@ const FileViewer: React.FC<FileViewerProps> = ({
     } else if (mimeType.startsWith('audio/')) {
       rendered = <AudioFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
     } else if (mimeType.startsWith('video/')) {
-      // Use streaming video component for files larger than 10MB
-      const isLargeVideo = metadata.size > 10 * 1024 * 1024;
-      
-      if (isLargeVideo) {
-        console.log('[FileViewer] Using streaming video for large file:', metadata.name, 'Size:', formatFileSize(metadata.size));
-        rendered = (
-          <StreamingVideoFile 
-            uuid={metadata.uuid} 
-            mimeType={mimeType} 
-            fileName={metadata.name}
-            totalSize={metadata.size}
-            fileData={actualFileData.length > 0 ? actualFileData : undefined} // Pass decrypted data if available
-            onLoadStart={() => console.log('[FileViewer] Streaming video load started')}
-            onLoadComplete={() => console.log('[FileViewer] Streaming video load completed')}
-            onError={(error) => console.error('[FileViewer] Streaming video error:', error)}
-          />
-        );
+      console.log('[FileViewer] Using VideoFile for video:', metadata.name, 'Size:', formatFileSize(metadata.size));
+      // Pass UUID for decryption if no file data is available
+      if (actualFileData.length > 0) {
+        rendered = <VideoFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
       } else {
-        console.log('[FileViewer] Using regular video for small file:', metadata.name, 'Size:', formatFileSize(metadata.size));
-        // Pass UUID for decryption if no file data is available
-        if (actualFileData.length > 0) {
-          rendered = <VideoFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
-        } else {
-          rendered = <VideoFile uuid={metadata.uuid} mimeType={mimeType} fileName={metadata.name} totalSize={metadata.size} />;
-        }
+        rendered = <VideoFile uuid={metadata.uuid} mimeType={mimeType} fileName={metadata.name} totalSize={metadata.size} />;
       }
     } else if (mimeType === 'application/pdf') {
       rendered = <PDFFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;

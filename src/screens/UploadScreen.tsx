@@ -837,12 +837,6 @@ const UploadScreen = () => {
         console.log(`[UploadScreen] Encrypting and saving file: ${file.name}, data size: ${fileData.length} bytes`);
         console.log(`[UploadScreen] Folder path: ${metaEditor.folderPath}, tags: ${metaEditor.tags.join(', ')}`);
         
-        // Check if this is a large video file that might benefit from streaming
-        const isLargeVideo = file.type.startsWith('video/') && fileData.length > 10 * 1024 * 1024;
-        if (isLargeVideo) {
-          console.log(`[UploadScreen] Large video detected (${(fileData.length / (1024 * 1024)).toFixed(1)}MB), will prepare for streaming after upload`);
-        }
-        
         try {
           const savedMetadata = await fileManagerService.saveEncryptedFile(
             fileData,
@@ -852,31 +846,6 @@ const UploadScreen = () => {
             metaEditor.tags
           );
           console.log(`[UploadScreen] Successfully saved encrypted file: ${file.name}`);
-          
-          // For large video files, prepare streaming metadata in the background
-          if (isLargeVideo && savedMetadata?.uuid && derivedKey) {
-            console.log(`[UploadScreen] Preparing streaming metadata for large video: ${file.name}`);
-            try {
-              const { VideoStreamingService } = await import('../utils/VideoStreamingService');
-              
-              // Prepare streaming in the background without blocking the upload process
-              VideoStreamingService.prepareVideoForStreaming(
-                savedMetadata.uuid, 
-                fileData, 
-                file.type, 
-                file.name, 
-                derivedKey
-              )
-                .then(() => {
-                  console.log(`[UploadScreen] Streaming preparation completed for: ${file.name}`);
-                })
-                .catch((error) => {
-                  console.warn(`[UploadScreen] Streaming preparation failed for ${file.name}:`, error);
-                });
-            } catch (importError) {
-              console.warn(`[UploadScreen] Failed to import streaming dependencies:`, importError);
-            }
-          }
         } catch (saveError) {
           console.error(`[UploadScreen] Failed to save encrypted file ${file.name}:`, saveError);
           throw saveError;
