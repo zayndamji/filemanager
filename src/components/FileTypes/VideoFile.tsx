@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Platform, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { Platform, View, Text, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
 import { FileManagerService } from '../../utils/FileManagerService';
 import { ThemeContext } from '../../theme';
 import { usePasswordContext } from '../../context/PasswordContext';
 import { useFileManagerService } from '../../hooks/useFileManagerService';
+
+const { width, height } = Dimensions.get('window');
 
 // Conditionally import Video for native platforms only
 let Video: any = null;
@@ -293,10 +295,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
+    minHeight: height * 0.65, // Match ImageFile container height
   },
   video: {
     width: '100%',
-    height: 240,
+    maxWidth: width * 0.9, // Match ImageFile sizing
+    height: height * 0.7, // Match ImageFile height (70% of screen height)
+    maxHeight: height * 0.7,
     backgroundColor: '#000',
     borderRadius: 8,
   },

@@ -161,7 +161,9 @@ const FileViewer: React.FC<FileViewerProps> = ({
   
   // Load file if fileData is empty (for large videos)
   React.useEffect(() => {
-    const shouldLoadFile = fileData.length === 0 && !isPreviewData && viewerMetadata.uuid;
+    // Don't load file data for videos if we're going to pass UUID to VideoFile for decryption
+    const isVideo = viewerMetadata.type.startsWith('video/');
+    const shouldLoadFile = fileData.length === 0 && !isPreviewData && viewerMetadata.uuid && !isVideo;
     
     if (shouldLoadFile) {
       console.log('[FileViewer] File data is empty, loading file:', viewerMetadata.name);
@@ -169,7 +171,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
     } else {
       setActualFileData(fileData);
     }
-  }, [fileData, isPreviewData, viewerMetadata.uuid]);
+  }, [fileData, isPreviewData, viewerMetadata.uuid, viewerMetadata.type]);
   
   const loadFileData = async () => {
     if (isLoadingFile) return;
@@ -478,7 +480,8 @@ const FileViewer: React.FC<FileViewerProps> = ({
       rendered = <AudioFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
     } else if (mimeType.startsWith('video/')) {
       console.log('[FileViewer] Using VideoFile for video:', metadata.name, 'Size:', formatFileSize(metadata.size));
-      // Pass UUID for decryption if no file data is available
+      // For videos, always pass UUID for decryption to avoid duplicate decryption in FileViewer
+      // VideoFile component will handle the decryption
       if (actualFileData.length > 0) {
         rendered = <VideoFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
       } else {
