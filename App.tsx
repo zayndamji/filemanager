@@ -5,13 +5,14 @@
 import './src/utils/polyfills.ts';
 
 import React from 'react';
-import { StatusBar, useColorScheme, Platform, View } from 'react-native';
+import { StatusBar, useColorScheme, Platform, View, AppState } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { FileProvider } from './src/context/FileContext';
 import { PasswordProvider } from './src/context/PasswordContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { ThemeProvider } from './src/theme';
+import { FileManagerService } from './src/utils/FileManagerService';
 
 // Conditionally import GestureHandlerRootView
 let GestureHandlerRootView: React.ComponentType<any> = View;
@@ -29,7 +30,31 @@ function App() {
   const isDarkMode = useColorScheme() === 'dark';
 
   React.useEffect(() => {
-    // Vector icons no longer needed - using WebCompatibleIcon with Unicode symbols
+    // Clean up temp files on app startup
+    FileManagerService.cleanupAllTempFiles().catch((error) => {
+      console.warn('[App] Failed to cleanup temp files on startup:', error);
+    });
+
+    // Handle app state changes for cleanup
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        // Clean up temp files when app goes to background
+        FileManagerService.cleanupAllTempFiles().catch((error) => {
+          console.warn('[App] Failed to cleanup temp files on background:', error);
+        });
+      }
+    };
+
+    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+
+    // Cleanup function
+    return () => {
+      appStateSubscription?.remove();
+      // Final cleanup on unmount
+      FileManagerService.cleanupAllTempFiles().catch((error) => {
+        console.warn('[App] Failed to cleanup temp files on unmount:', error);
+      });
+    };
   }, []);
 
   return (

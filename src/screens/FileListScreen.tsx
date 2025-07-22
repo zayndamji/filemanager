@@ -234,18 +234,18 @@ const FileListScreen = () => {
     
     const start = Date.now();
     
-    // For large video files (>10MB), skip loading here and let FileViewer handle it
-    const isLargeVideo = file.metadata.type.startsWith('video/') && file.metadata.size > 10 * 1024 * 1024;
+    // For all video files, skip loading here and let FileViewer handle it
+    const isVideo = file.metadata.type.startsWith('video/');
     
-    if (isLargeVideo) {
-      console.log('[FileListScreen] Opening large video file in viewer without pre-loading:', file.metadata.name);
+    if (isVideo) {
+      console.log('[FileListScreen] Opening video file in viewer without pre-loading:', file.metadata.name);
       setSelectedFile(file);
       setFileData(new Uint8Array(0)); // Empty data, FileViewer will handle loading
       setIsPreviewData(false);
       setViewerVisible(true);
       return;
     }
-    
+
     try {
       // For image files, try to load preview first for faster initial display
       if (file.metadata.type.startsWith('image/')) {
@@ -261,7 +261,7 @@ const FileListScreen = () => {
         }
       }
       
-      // Fallback to loading full file for non-images or when preview is not available
+      // Fallback to loading full file for non-videos/non-images or when preview is not available
       const result = await fileManagerService.loadEncryptedFile(file.uuid);
       setSelectedFile(file);
       setFileData(result.fileData);
@@ -273,9 +273,7 @@ const FileListScreen = () => {
       console.error('[FileListScreen] Error loading file:', error);
       showAlert('Error', 'Failed to load file. Please check your password.');
     }
-  };
-
-  const handleDeleteFile = async (file: EncryptedFile) => {
+  };  const handleDeleteFile = async (file: EncryptedFile) => {
     const start = Date.now();
     try {
       const success = await fileManagerService.deleteEncryptedFile(file.uuid);

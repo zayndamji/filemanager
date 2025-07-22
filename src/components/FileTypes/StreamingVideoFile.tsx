@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useContext } from 'react';
 import { Platform, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { VideoStreamingService } from '../../utils/VideoStreamingService';
 import { usePasswordContext } from '../../context/PasswordContext';
-import { uint8ArrayToBase64 } from '../../utils/Base64Utils';
+import { FileManagerService } from '../../utils/FileManagerService';
+import { ThemeContext } from '../../theme';
 
 // Conditionally import Video for native platforms only
 let Video: any = null;
@@ -36,11 +37,13 @@ const StreamingVideoFileNative: React.FC<StreamingVideoFileProps> = ({
   onError
 }) => {
   const { derivedKey } = usePasswordContext();
+  const { theme } = useContext(ThemeContext);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [cacheStats, setCacheStats] = useState({ cachedChunks: 0, memorySizeKB: 0, fullFilesCached: 0 });
+  const [tempFilePath, setTempFilePath] = useState<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
   
   useEffect(() => {
@@ -71,33 +74,62 @@ const StreamingVideoFileNative: React.FC<StreamingVideoFileProps> = ({
           console.log('[StreamingVideoFile] Video already available - fast loading');
         }
         
-        // Use complete video blob loading with progress reporting
-        const videoBlob = await VideoStreamingService.createProgressiveVideoBlob(
-          uuid,
-          derivedKey,
-          (loaded, total) => {
-            const progress = Math.round((loaded / total) * 100);
-            setLoadingProgress(progress);
-            console.log(`[StreamingVideoFile] Web loading progress: ${progress}%`);
-          },
-          abortController.signal,
-          fileData // Pass pre-decrypted data if available
-        );
+        // Get the video data (either from passed fileData or load it)
+        let videoData: Uint8Array;
+        if (fileData && fileData.length > 0) {
+          console.log('[StreamingVideoFile] Using provided file data');
+          videoData = fileData;
+          setLoadingProgress(100);
+        } else {
+          console.log('[StreamingVideoFile] Loading video data via streaming service');
+          // Use complete video blob loading with progress reporting
+          const videoBlob = await VideoStreamingService.createProgressiveVideoBlob(
+            uuid,
+            derivedKey,
+            (loaded, total) => {
+              const progress = Math.round((loaded / total) * 100);
+              setLoadingProgress(progress);
+              console.log(`[StreamingVideoFile] Native loading progress: ${progress}%`);
+            },
+            abortController.signal
+          );
+
+          if (abortController.signal.aborted) {
+            return;
+          }
+
+          if (!videoBlob) {
+            throw new Error('Failed to load video data');
+          }
+
+          // Convert blob to Uint8Array if needed
+          if (videoBlob.startsWith('data:')) {
+            // Data URI - extract base64 and convert
+            const base64Data = videoBlob.split(',')[1];
+            const binaryString = atob(base64Data);
+            videoData = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              videoData[i] = binaryString.charCodeAt(i);
+            }
+          } else {
+            throw new Error('Unexpected video blob format for native platform');
+          }
+        }
+
+        // Always use temp file approach for better compatibility
+        console.log('[StreamingVideoFile] Creating temp file for video playback');
+        const tempPath = await FileManagerService.createTempFile(videoData, fileName);
+        setTempFilePath(tempPath);
+        setVideoUri(`file://${tempPath}`);
+        console.log('[StreamingVideoFile] Temp file created for video:', tempPath);
 
         if (abortController.signal.aborted) {
           return;
         }
 
-        if (videoBlob) {
-          console.log('[StreamingVideoFile] Web video blob ready for playback');
-          setVideoUri(videoBlob);
-          setLoadingProgress(100);
-          
-          const stats = VideoStreamingService.getCacheStats();
-          setCacheStats(stats);
-        } else {
-          setError('Failed to prepare video for playback');
-        }
+        // Update cache stats
+        const stats = VideoStreamingService.getCacheStats();
+        setCacheStats(stats);
         
         onLoadComplete?.();
       } catch (error) {
@@ -120,8 +152,21 @@ const StreamingVideoFileNative: React.FC<StreamingVideoFileProps> = ({
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      cleanupTempFile();
     };
   }, [uuid, derivedKey, fileData, onLoadStart, onLoadComplete, onError]);
+
+  const cleanupTempFile = async () => {
+    if (tempFilePath) {
+      try {
+        await FileManagerService.deleteTempFile(tempFilePath);
+        console.log('[StreamingVideoFile] Cleaned up temp file:', tempFilePath);
+        setTempFilePath('');
+      } catch (cleanupError) {
+        console.warn('[StreamingVideoFile] Failed to cleanup temp file:', cleanupError);
+      }
+    }
+  };
 
   // Update cache stats periodically
   useEffect(() => {
@@ -135,20 +180,17 @@ const StreamingVideoFileNative: React.FC<StreamingVideoFileProps> = ({
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>{fileName}</Text>
-        <Text style={styles.subtitle}>Type: {mimeType}</Text>
-        <Text style={styles.subtitle}>Size: {(totalSize / (1024 * 1024)).toFixed(1)} MB</Text>
+      <View style={[styles.container, { backgroundColor: theme.surface }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>
+          <ActivityIndicator size="large" color={theme.accent} />
+          <Text style={[styles.loadingText, { color: theme.text }]}>
             {cacheStats.fullFilesCached > 0 ? 'Loading cached video...' : 'Decrypting video...'}
           </Text>
           {loadingProgress > 0 && (
-            <Text style={styles.progressText}>{loadingProgress}% loaded</Text>
+            <Text style={[styles.progressText, { color: theme.textSecondary }]}>{loadingProgress}% loaded</Text>
           )}
           {cacheStats.cachedChunks > 0 && (
-            <Text style={styles.cacheText}>
+            <Text style={[styles.cacheText, { color: theme.textSecondary }]}>
               {cacheStats.fullFilesCached > 0 ? '🎥 Full video cached' : '⚡ Streaming mode'} ({cacheStats.memorySizeKB} KB)
             </Text>
           )}
@@ -159,13 +201,10 @@ const StreamingVideoFileNative: React.FC<StreamingVideoFileProps> = ({
 
   if (error) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>{fileName}</Text>
-        <Text style={styles.subtitle}>Type: {mimeType}</Text>
-        <Text style={styles.subtitle}>Size: {(totalSize / (1024 * 1024)).toFixed(1)} MB</Text>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>⚠️ {error}</Text>
-          <Text style={styles.errorSubtext}>
+      <View style={[styles.container, { backgroundColor: theme.surface }]}>
+        <View style={[styles.errorContainer, { backgroundColor: theme.surface }]}>
+          <Text style={[styles.errorText, { color: theme.error }]}>⚠️ {error}</Text>
+          <Text style={[styles.errorSubtext, { color: theme.textSecondary }]}>
             Large videos may take time to decrypt. Please wait or try again.
           </Text>
         </View>
@@ -175,19 +214,14 @@ const StreamingVideoFileNative: React.FC<StreamingVideoFileProps> = ({
 
   if (!Video) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>{fileName}</Text>
-        <Text style={styles.errorText}>Video player not available on this platform</Text>
+      <View style={[styles.container, { backgroundColor: theme.surface }]}>
+        <Text style={[styles.errorText, { color: theme.error }]}>Video player not available on this platform</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{fileName}</Text>
-      <Text style={styles.subtitle}>Type: {mimeType}</Text>
-      <Text style={styles.subtitle}>Size: {(totalSize / (1024 * 1024)).toFixed(1)} MB</Text>
-      
+    <View style={[styles.container, { backgroundColor: theme.surface }]}>
       {videoUri ? (
         <View style={styles.videoContainer}>
           <Video
@@ -196,6 +230,10 @@ const StreamingVideoFileNative: React.FC<StreamingVideoFileProps> = ({
             controls
             resizeMode="contain"
             paused={false}
+            fullscreen={false}
+            allowsExternalPlayback={false}
+            playWhenInactive={false}
+            playInBackground={false}
             onLoad={() => {
               console.log('[StreamingVideoFile] Video loaded successfully');
               setLoadingProgress(100);
@@ -204,18 +242,25 @@ const StreamingVideoFileNative: React.FC<StreamingVideoFileProps> = ({
               console.error('[StreamingVideoFile] Video playback error:', error);
               setError('Video playback failed');
             }}
+            onFullscreenPlayerWillPresent={() => {
+              console.warn('[StreamingVideoFile] Fullscreen not supported - preventing crash');
+              return false;
+            }}
+            onFullscreenPlayerDidPresent={() => {
+              console.warn('[StreamingVideoFile] Fullscreen presented but should be disabled');
+            }}
           />
           
           {cacheStats.cachedChunks > 0 && (
             <View style={styles.statsContainer}>
-              <Text style={styles.statsText}>
+              <Text style={[styles.statsText, { color: theme.textSecondary }]}>
                 📦 {cacheStats.cachedChunks} chunks • 💾 {cacheStats.memorySizeKB} KB cached
               </Text>
             </View>
           )}
         </View>
       ) : (
-        <Text style={styles.noteText}>Video preview is not available.</Text>
+        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Video preview is not available.</Text>
       )}
     </View>
   );
@@ -232,6 +277,7 @@ const StreamingVideoFileWeb: React.FC<StreamingVideoFileProps> = ({
   onError
 }) => {
   const { derivedKey } = usePasswordContext();
+  const { theme } = useContext(ThemeContext);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [videoUri, setVideoUri] = useState<string | null>(null);
@@ -332,35 +378,45 @@ const StreamingVideoFileWeb: React.FC<StreamingVideoFileProps> = ({
 
   if (loading) {
     return (
-      <div style={{ padding: 24, background: '#fff', borderRadius: 12, textAlign: 'center' }}>
-        <div style={{ fontWeight: 'bold', marginBottom: 8 }}>{fileName}</div>
-        <div style={{ color: '#666', marginBottom: 4 }}>Type: {mimeType}</div>
-        <div style={{ color: '#666', marginBottom: 4 }}>Size: {(totalSize / (1024 * 1024)).toFixed(1)} MB</div>
-        <div style={{ margin: '20px 0' }}>
-          <div style={{ color: '#007AFF', marginBottom: 8 }}>
-            {cacheStats.fullFilesCached > 0 ? '⏳ Loading cached video...' : '🔓 Decrypting video...'}
-          </div>
-          {loadingProgress > 0 && (
-            <div style={{ color: '#666', marginBottom: 4 }}>{loadingProgress}% loaded</div>
-          )}
-          {cacheStats.cachedChunks > 0 && (
-            <div style={{ color: '#666', fontSize: 12 }}>
-              {cacheStats.fullFilesCached > 0 ? '🎥 Full video cached' : '⚡ Streaming mode'} ({cacheStats.memorySizeKB} KB)
-            </div>
-          )}
+      <div style={{ 
+        padding: 16, 
+        backgroundColor: theme.surface, 
+        borderRadius: 12, 
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: 240
+      }}>
+        <div style={{ color: theme.text, marginBottom: 8 }}>
+          {cacheStats.fullFilesCached > 0 ? '⏳ Loading cached video...' : '🔓 Decrypting video...'}
         </div>
+        {loadingProgress > 0 && (
+          <div style={{ color: theme.textSecondary, marginBottom: 4 }}>{loadingProgress}% loaded</div>
+        )}
+        {cacheStats.cachedChunks > 0 && (
+          <div style={{ color: theme.textSecondary, fontSize: 12 }}>
+            {cacheStats.fullFilesCached > 0 ? '🎥 Full video cached' : '⚡ Streaming mode'} ({cacheStats.memorySizeKB} KB)
+          </div>
+        )}
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ padding: 24, background: '#fff', borderRadius: 12, textAlign: 'center' }}>
-        <div style={{ fontWeight: 'bold', marginBottom: 8 }}>{fileName}</div>
-        <div style={{ color: '#666', marginBottom: 4 }}>Type: {mimeType}</div>
-        <div style={{ color: '#666', marginBottom: 4 }}>Size: {(totalSize / (1024 * 1024)).toFixed(1)} MB</div>
-        <div style={{ color: '#ff6b6b', marginTop: 16 }}>⚠️ {error}</div>
-        <div style={{ color: '#999', marginTop: 8, fontSize: 14 }}>
+      <div style={{ 
+        padding: 16, 
+        backgroundColor: theme.surface, 
+        borderRadius: 12, 
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: 240
+      }}>
+        <div style={{ color: theme.error, marginBottom: 8 }}>⚠️ {error}</div>
+        <div style={{ color: theme.textSecondary, fontSize: 14 }}>
           Large videos may take time to decrypt. Please wait or try again.
         </div>
       </div>
@@ -368,11 +424,15 @@ const StreamingVideoFileWeb: React.FC<StreamingVideoFileProps> = ({
   }
 
   return (
-    <div style={{ padding: 24, background: '#fff', borderRadius: 12, textAlign: 'center' }}>
-      <div style={{ fontWeight: 'bold', marginBottom: 8 }}>{fileName}</div>
-      <div style={{ color: '#666', marginBottom: 4 }}>Type: {mimeType}</div>
-      <div style={{ color: '#666', marginBottom: 4 }}>Size: {(totalSize / (1024 * 1024)).toFixed(1)} MB</div>
-      
+    <div style={{ 
+      padding: 16, 
+      backgroundColor: theme.surface, 
+      borderRadius: 12, 
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: 240
+    }}>
       {videoUri ? (
         <>
           <video 
@@ -380,11 +440,11 @@ const StreamingVideoFileWeb: React.FC<StreamingVideoFileProps> = ({
             controls 
             style={{ 
               width: '100%', 
-              maxWidth: 640, 
-              height: 360, 
-              borderRadius: 12, 
-              marginTop: 16, 
-              background: '#000' 
+              maxWidth: '100%', 
+              height: 'auto',
+              maxHeight: 400,
+              borderRadius: 8, 
+              backgroundColor: '#000' 
             }}
             onLoadStart={() => console.log('[StreamingVideoFile] Web video load started')}
             onCanPlay={() => {

@@ -34,12 +34,38 @@ export interface EncryptedFile {
 }
 
 export class FileManagerService {
+  // Track active temp files for cleanup
+  private static activeTempFiles = new Set<string>();
+
   /**
    * Creates a temporary file from data and returns its path (cross-platform)
    */
   static async createTempFile(data: Uint8Array, fileName: string): Promise<string> {
     const tempName = `temp_${Date.now()}_${fileName}`;
-    await FileSystem.writeFile(tempName, data, 'base64');
+    
+    if ((Platform.OS as any) === 'web') {
+      const base64Data = uint8ArrayToBase64(data);
+      await FileSystem.writeFile(tempName, base64Data, 'base64');
+    } else {
+      // For native platforms, create temp file in a temp directory
+      const tempDir = RNFS ? `${RNFS.TemporaryDirectoryPath}` : `${RNFS.DocumentDirectoryPath}/temp`;
+      const tempPath = `${tempDir}/${tempName}`;
+      
+      // Ensure temp directory exists
+      if (RNFS) {
+        await RNFS.mkdir(tempDir).catch(() => {}); // Ignore if exists
+        const base64Data = uint8ArrayToBase64(data);
+        await RNFS.writeFile(tempPath, base64Data, 'base64');
+      }
+      
+      // Track the temp file for cleanup
+      this.activeTempFiles.add(tempPath);
+      console.log('[FileManagerService] Created temp file:', tempPath);
+      return tempPath;
+    }
+    
+    this.activeTempFiles.add(tempName);
+    console.log('[FileManagerService] Created temp file:', tempName);
     return tempName;
   }
 
@@ -47,7 +73,91 @@ export class FileManagerService {
    * Deletes a temporary file (cross-platform)
    */
   static async deleteTempFile(tempFilePath: string): Promise<void> {
-    await FileSystem.deleteFile(tempFilePath);
+    try {
+      if ((Platform.OS as any) === 'web') {
+        await FileSystem.deleteFile(tempFilePath);
+      } else if (RNFS) {
+        await RNFS.unlink(tempFilePath);
+      }
+      
+      this.activeTempFiles.delete(tempFilePath);
+      console.log('[FileManagerService] Deleted temp file:', tempFilePath);
+    } catch (error) {
+      console.warn('[FileManagerService] Failed to delete temp file:', tempFilePath, error);
+      // Still remove from tracking even if deletion failed
+      this.activeTempFiles.delete(tempFilePath);
+    }
+  }
+
+  /**
+   * Cleanup all temporary files (called on app startup and shutdown)
+   */
+  static async cleanupAllTempFiles(): Promise<void> {
+    console.log('[FileManagerService] Cleaning up all temporary files...');
+    
+    try {
+      if ((Platform.OS as any) === 'web') {
+        // For web, we can't easily list files, so just clear our tracking
+        this.activeTempFiles.clear();
+      } else if (RNFS) {
+        // For native platforms, clean up temp directory
+        const tempDir = `${RNFS.TemporaryDirectoryPath}`;
+        const documentsTemp = `${RNFS.DocumentDirectoryPath}/temp`;
+        
+        // Clean temp directory
+        try {
+          const tempFiles = await RNFS.readDir(tempDir);
+          for (const file of tempFiles) {
+            if (file.name.startsWith('temp_')) {
+              try {
+                await RNFS.unlink(file.path);
+                console.log('[FileManagerService] Cleaned up temp file:', file.path);
+              } catch (error) {
+                console.warn('[FileManagerService] Failed to clean temp file:', file.path, error);
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('[FileManagerService] Failed to read temp directory:', error);
+        }
+        
+        // Clean documents temp directory
+        try {
+          const docTempFiles = await RNFS.readDir(documentsTemp);
+          for (const file of docTempFiles) {
+            if (file.name.startsWith('temp_')) {
+              try {
+                await RNFS.unlink(file.path);
+                console.log('[FileManagerService] Cleaned up documents temp file:', file.path);
+              } catch (error) {
+                console.warn('[FileManagerService] Failed to clean documents temp file:', file.path, error);
+              }
+            }
+          }
+        } catch (error) {
+          // Temp directory might not exist, which is fine
+          console.log('[FileManagerService] Documents temp directory does not exist or is empty');
+        }
+      }
+      
+      // Clean up tracked temp files
+      const tempFilesArray = Array.from(this.activeTempFiles);
+      for (const tempFile of tempFilesArray) {
+        await this.deleteTempFile(tempFile);
+      }
+      
+      this.activeTempFiles.clear();
+      console.log('[FileManagerService] Temporary file cleanup completed');
+    } catch (error) {
+      console.error('[FileManagerService] Error during temp file cleanup:', error);
+    }
+  }
+
+  /**
+   * Get list of active temp files (for debugging)
+   */
+  static getActiveTempFiles(): string[] {
+    return Array.from(this.activeTempFiles);
   }
   
   /**

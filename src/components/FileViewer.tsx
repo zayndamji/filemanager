@@ -115,6 +115,14 @@ const FileViewer: React.FC<FileViewerProps> = ({
   const [viewerMetadata, setViewerMetadata] = React.useState<FileMetadata>(metadata);
   React.useEffect(() => {
     console.log('[FileViewer] mounted');
+    
+    // Cleanup on unmount
+    return () => {
+      console.log('[FileViewer] unmounting, cleaning up temp files');
+      FileManagerService.cleanupAllTempFiles().catch((error) => {
+        console.warn('[FileViewer] Failed to cleanup temp files on unmount:', error);
+      });
+    };
   }, []);
   React.useEffect(() => {
     console.log('[FileViewer] metadata changed:', { uuid: viewerMetadata?.uuid });
@@ -251,6 +259,10 @@ const FileViewer: React.FC<FileViewerProps> = ({
 
   const handleClose = React.useCallback(() => {
     cancelImageLoading();
+    // Clean up any temporary files when closing the viewer
+    FileManagerService.cleanupAllTempFiles().catch((error) => {
+      console.warn('[FileViewer] Failed to cleanup temp files on close:', error);
+    });
     onClose();
   }, [cancelImageLoading, onClose]);
 
@@ -485,7 +497,12 @@ const FileViewer: React.FC<FileViewerProps> = ({
         );
       } else {
         console.log('[FileViewer] Using regular video for small file:', metadata.name, 'Size:', formatFileSize(metadata.size));
-        rendered = <VideoFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
+        // Pass UUID for decryption if no file data is available
+        if (actualFileData.length > 0) {
+          rendered = <VideoFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
+        } else {
+          rendered = <VideoFile uuid={metadata.uuid} mimeType={mimeType} fileName={metadata.name} totalSize={metadata.size} />;
+        }
       }
     } else if (mimeType === 'application/pdf') {
       rendered = <PDFFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
@@ -658,8 +675,8 @@ const FileViewer: React.FC<FileViewerProps> = ({
             )}
           </ScrollView>
 
-          {/* Navigation arrows for all file types */}
-          {(onNavigatePrev || onNavigateNext) && (
+          {/* Navigation arrows for image files only */}
+          {(onNavigatePrev || onNavigateNext) && metadata.type.startsWith('image/') && (
             <>
               {/* Left arrow */}
               {onNavigatePrev && hasPrev && (
