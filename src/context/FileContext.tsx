@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useMemo, useEffect, ReactNo
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePasswordContext } from './PasswordContext';
 import { FileManagerService, EncryptedFile } from '../utils/FileManagerService';
+import { useFileManagerService } from '../hooks/useFileManagerService';
 
 export type SortOption = 'name' | 'lastModified' | 'uuid' | 'size';
 
@@ -28,6 +29,7 @@ const SORT_BY_STORAGE_KEY = '@FileManager:sortBy';
 
 export function FileProvider({ children }: FileProviderProps) {
   const { derivedKey } = usePasswordContext();
+  const fileManagerService = useFileManagerService();
   const [encryptedFiles, setEncryptedFiles] = useState<EncryptedFile[]>([]);
   const [currentFolderPath, setCurrentFolderPath] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -67,10 +69,11 @@ export function FileProvider({ children }: FileProviderProps) {
     console.log('[FileContext] Refreshing encrypted file list...');
     setLoading(true);
     try {
-      const files = await FileManagerService.listEncryptedFiles(derivedKey);
+      const files = await fileManagerService.listEncryptedFiles();
       setEncryptedFiles(files);
     } catch (error) {
       console.error('Error refreshing file list:', error);
+      setEncryptedFiles([]);
     } finally {
       setLoading(false);
     }

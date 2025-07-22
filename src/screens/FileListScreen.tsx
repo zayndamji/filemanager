@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFileContext } from '../context/FileContext';
-import { usePasswordContext } from '../context/PasswordContext';
-import { FileManagerService, EncryptedFile } from '../utils/FileManagerService';
+import { EncryptedFile } from '../utils/FileManagerService';
+import { useFileManagerService } from '../hooks/useFileManagerService';
 import FileViewer from '../components/FileViewer';
 import WebCompatibleIcon from '../components/WebCompatibleIcon';
 import SortDropdown from '../components/SortDropdown';
@@ -171,7 +171,7 @@ const FileListScreen = () => {
     filesInCurrentFolder,
     subfolders
   } = useFileContext();
-  const { derivedKey } = usePasswordContext();
+  const fileManagerService = useFileManagerService();
   const [selectedFile, setSelectedFile] = useState<EncryptedFile | null>(null);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [fileData, setFileData] = useState<Uint8Array | null>(null);
@@ -226,11 +226,6 @@ const FileListScreen = () => {
   };
 
   const handleFilePress = async (file: EncryptedFile) => {
-    if (!derivedKey) {
-      showAlert('Error', 'No derived key available. Please enter your password.');
-      return;
-    }
-    
     // Set the current file index for navigation
     const fileIndex = filesInCurrentFolder.findIndex(f => f.uuid === file.uuid);
     if (fileIndex >= 0) {
@@ -241,7 +236,7 @@ const FileListScreen = () => {
     try {
       // For image files, try to load preview first for faster initial display
       if (file.metadata.type.startsWith('image/')) {
-        const previewData = await FileManagerService.getFilePreview(file.uuid, derivedKey);
+        const previewData = await fileManagerService.getFilePreview(file.uuid);
         if (previewData) {
           setSelectedFile(file);
           setFileData(previewData);
@@ -254,7 +249,7 @@ const FileListScreen = () => {
       }
       
       // Fallback to loading full file for non-images or when preview is not available
-      const result = await FileManagerService.loadEncryptedFile(file.uuid, derivedKey);
+      const result = await fileManagerService.loadEncryptedFile(file.uuid);
       setSelectedFile(file);
       setFileData(result.fileData);
       setIsPreviewData(false);
@@ -270,7 +265,7 @@ const FileListScreen = () => {
   const handleDeleteFile = async (file: EncryptedFile) => {
     const start = Date.now();
     try {
-      const success = await FileManagerService.deleteEncryptedFile(file.uuid);
+      const success = await fileManagerService.deleteEncryptedFile(file.uuid);
       if (success) {
         showAlert('Success', 'File deleted successfully');
         await refreshFileList();

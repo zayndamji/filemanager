@@ -17,7 +17,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFileContext, SortOption } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
-import { FileManagerService, EncryptedFile } from '../utils/FileManagerService';
+import { EncryptedFile } from '../utils/FileManagerService';
+import { useFileManagerService } from '../hooks/useFileManagerService';
 import { uint8ArrayToBase64 } from '../utils/Base64Utils';
 import FileViewer from '../components/FileViewer';
 import WebCompatibleIcon from '../components/WebCompatibleIcon';
@@ -233,7 +234,8 @@ const getStyles = (theme: typeof import('../theme').darkTheme, screenData: { wid
 
 const GalleryScreen = () => {
   const { encryptedFiles, refreshFileList, loading, sortBy, setSortBy } = useFileContext();
-  const { password, derivedKey } = usePasswordContext();
+  const { password } = usePasswordContext();
+  const fileManagerService = useFileManagerService();
   const [imageFiles, setImageFiles] = useState<EncryptedFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<EncryptedFile | null>(null);
   const [viewerVisible, setViewerVisible] = useState(false);
@@ -263,7 +265,6 @@ const GalleryScreen = () => {
   // Refs to access current state in stable callbacks
   const thumbnailsRef = useRef(thumbnails);
   const loadingThumbnailsRef = useRef(loadingThumbnails);
-  const derivedKeyRef = useRef(derivedKey);
   const loadThumbnailRef = useRef<((image: EncryptedFile, useBackground?: boolean) => Promise<void>) | null>(null);
 
   // Update refs when state changes
@@ -274,10 +275,6 @@ const GalleryScreen = () => {
   useEffect(() => {
     loadingThumbnailsRef.current = loadingThumbnails;
   }, [loadingThumbnails]);
-
-  useEffect(() => {
-    derivedKeyRef.current = derivedKey;
-  }, [derivedKey]);
 
   // Sort files function (same as in FileContext but for images only)
   const sortImageFiles = (files: EncryptedFile[], sortOption: SortOption): EncryptedFile[] => {
@@ -336,7 +333,7 @@ const GalleryScreen = () => {
 
   // Lazy load individual thumbnails for visible items with optional background processing
   const loadThumbnail = useCallback(async (image: EncryptedFile, useBackground = false) => {
-    if (!derivedKeyRef.current || thumbnailsRef.current.has(image.uuid) || loadingThumbnailsRef.current.has(image.uuid)) {
+    if (thumbnailsRef.current.has(image.uuid) || loadingThumbnailsRef.current.has(image.uuid)) {
       return;
     }
 
@@ -348,7 +345,7 @@ const GalleryScreen = () => {
       try {
         const thumbStart = Date.now();
         // Load preview only - no fallback to full image for performance
-        const imageData = await FileManagerService.getFilePreview(image.uuid, derivedKeyRef.current!);
+        const imageData = await fileManagerService.getFilePreview(image.uuid);
         if (imageData) {
           const base64String = uint8ArrayToBase64(imageData);
           const dataUri = `data:${image.metadata.type};base64,${base64String}`;
@@ -403,7 +400,7 @@ const GalleryScreen = () => {
     setTimeout(() => {
       viewableItems.forEach(({ item }) => {
         // Check current state using refs to avoid stale closures
-        if (!thumbnailsRef.current.has(item.uuid) && !loadingThumbnailsRef.current.has(item.uuid) && derivedKeyRef.current && loadThumbnailRef.current) {
+        if (!thumbnailsRef.current.has(item.uuid) && !loadingThumbnailsRef.current.has(item.uuid) && loadThumbnailRef.current) {
           loadThumbnailRef.current(item);
         }
       });
@@ -449,11 +446,6 @@ const GalleryScreen = () => {
   };
 
   const handleImagePress = async (image: EncryptedFile) => {
-    if (!derivedKey) {
-      showAlert('Error', 'No derived key available. Please enter your password.');
-      return;
-    }
-    
     // Set the current image index for navigation
     const imageIndex = filteredImages.findIndex(img => img.uuid === image.uuid);
     if (imageIndex >= 0) {
@@ -462,7 +454,7 @@ const GalleryScreen = () => {
     
     try {
       // For image files, try to load preview first for faster initial display
-      const previewData = await FileManagerService.getFilePreview(image.uuid, derivedKey);
+      const previewData = await fileManagerService.getFilePreview(image.uuid);
       if (previewData) {
         setSelectedFile(image);
         setFileData(previewData);
@@ -472,7 +464,7 @@ const GalleryScreen = () => {
       }
       
       // Fallback to loading full image if preview is not available
-      const result = await FileManagerService.loadEncryptedFile(image.uuid, derivedKey);
+      const result = await fileManagerService.loadEncryptedFile(image.uuid);
       setSelectedFile(image);
       setFileData(result.fileData);
       setIsPreviewData(false);

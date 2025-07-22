@@ -31,8 +31,7 @@ if (Platform.OS !== 'web') {
 
 import { useFileContext } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
-import { FileManagerService } from '../utils/FileManagerService';
-import * as FileSystem from '../utils/FileSystem';
+import { useFileManagerService } from '../hooks/useFileManagerService';
 import WebCompatibleIcon from '../components/WebCompatibleIcon';
 import { ThemeContext } from '../theme';
 import MetadataEditor from '../components/MetadataEditor/MetadataEditor';
@@ -322,7 +321,8 @@ const getStyles = (theme: typeof import('../theme').darkTheme) => StyleSheet.cre
 
 const UploadScreen = () => {
   const { refreshFileList, encryptedFiles } = useFileContext();
-  const { password, derivedKey } = usePasswordContext();
+  const { password } = usePasswordContext();
+  const fileManagerService = useFileManagerService();
   const [uploading, setUploading] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<Array<{ uri: string; name: string; type: string; size?: number; webFile?: File }>>([]);
   // Use unified metadata editor for folder path and tags
@@ -570,10 +570,6 @@ const UploadScreen = () => {
   };
 
   const encryptAndSaveAllFiles = async () => {
-    if (!derivedKey) {
-      showAlert('Error', 'No derived key available. Please enter your password.');
-      return;
-    }
     setUploading(true);
     try {
       for (const file of pendingFiles) {
@@ -619,11 +615,10 @@ const UploadScreen = () => {
         } else {
           fileData = new Uint8Array();
         }
-        await FileManagerService.saveEncryptedFile(
+        await fileManagerService.saveEncryptedFile(
           fileData,
           file.name,
           file.type,
-          derivedKey,
           metaEditor.folderPath.split('/').filter(Boolean),
           metaEditor.tags
         );

@@ -5,7 +5,7 @@ import { useFileContext } from '../context/FileContext';
 import { usePasswordContext } from '../context/PasswordContext';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { FileManagerService } from '../utils/FileManagerService';
+import { useFileManagerService } from '../hooks/useFileManagerService';
 import { ThemeContext, darkTheme, lightTheme } from '../theme';
 import JSZip from 'jszip';
 import { Platform } from 'react-native';
@@ -46,7 +46,8 @@ type RootStackParamList = {
 
 const SettingsScreen = () => {
   const { encryptedFiles, refreshFileList } = useFileContext();
-  const { derivedKey, setPassword } = usePasswordContext();
+  const { setPassword } = usePasswordContext();
+  const fileManagerService = useFileManagerService();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { theme, setTheme } = React.useContext(ThemeContext);
   const [deleting, setDeleting] = useState(false);
@@ -54,11 +55,11 @@ const SettingsScreen = () => {
   const [importing, setImporting] = useState(false);
   
   // Helper: Check if metadata.enc is decryptable
-  async function isDecryptable(metadataPath: string, derivedKey: Uint8Array) {
+  async function isDecryptable(metadataPath: string) {
     try {
       // Extract UUID from metadataPath
       const uuid = (metadataPath.split('/').pop() ?? '').replace('.metadata.enc', '');
-      await FileManagerService.loadFileMetadata(uuid, derivedKey);
+      await fileManagerService.loadFileMetadata(uuid);
       return true;
     } catch {
       return false;
@@ -67,10 +68,6 @@ const SettingsScreen = () => {
 
   // Export all decryptable files and their metadata.enc to a ZIP
   const handleExport = async () => {
-    if (!derivedKey) {
-      showAlert('Error', 'No password set.');
-      return;
-    }
     setExporting(true);
     try {
       console.log('[SettingsScreen] Export: Starting export process');
@@ -192,10 +189,6 @@ const SettingsScreen = () => {
 
   // Import ZIP archive and add decryptable files
   const handleImport = async () => {
-    if (!derivedKey) {
-      showAlert('Error', 'No password set.');
-      return;
-    }
     setImporting(true);
     // Use cross-platform FileSystem utility for import
     try {
@@ -345,8 +338,7 @@ const SettingsScreen = () => {
           onPress: async () => {
             setDeleting(true);
             try {
-              if (!derivedKey) throw new Error('No password set');
-              const deletedCount = await FileManagerService.deleteAllFiles(derivedKey);
+              const deletedCount = await fileManagerService.deleteAllFiles();
               await refreshFileList();
               showAlert('Success', `${deletedCount} file${deletedCount === 1 ? '' : 's'} deleted.`);
             } catch (error) {
@@ -361,11 +353,6 @@ const SettingsScreen = () => {
   };
 
   const handleClearCorrupted = async () => {
-    if (!derivedKey) {
-      showAlert('Error', 'No password set.');
-      return;
-    }
-    
     showAlert(
       'Clear Corrupted Files',
       'This will remove files that cannot be decrypted (usually from before recent fixes). This action cannot be undone.',
@@ -385,7 +372,7 @@ const SettingsScreen = () => {
                 if (fileName.endsWith('.metadata.enc')) {
                   const uuid = fileName.replace('.metadata.enc', '');
                   try {
-                    await FileManagerService.loadFileMetadata(uuid, derivedKey);
+                    await fileManagerService.loadFileMetadata(uuid);
                     // If we get here, metadata is fine
                   } catch (e) {
                     // This metadata file is corrupted, delete the entire file set

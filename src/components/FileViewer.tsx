@@ -46,6 +46,7 @@ import { AudioFile } from './FileTypes/AudioFile';
 import PDFFile from './FileTypes/PDFFile';
 import VideoFile from './FileTypes/VideoFile';
 import { FileMetadata, FileManagerService } from '../utils/FileManagerService';
+import { useFileManagerService } from '../hooks/useFileManagerService';
 import { usePasswordContext } from '../context/PasswordContext';
 
 // props for file viewer
@@ -138,7 +139,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
     }
   };
   const { theme } = React.useContext(ThemeContext);
-  const { derivedKey } = usePasswordContext();
+  const fileManagerService = useFileManagerService();
   
   // State for handling image preview/full loading
   const [imageFullData, setImageFullData] = React.useState<Uint8Array | null>(null);
@@ -245,11 +246,6 @@ const FileViewer: React.FC<FileViewerProps> = ({
         return;
       }
       
-      if (!derivedKey) {
-        console.log('[FileViewer] No derived key available for full image load');
-        return;
-      }
-
       // Cancel any existing loading operation
       cancelImageLoading();
 
@@ -305,9 +301,8 @@ const FileViewer: React.FC<FileViewerProps> = ({
                   // No-op - just indicates activity
                 };
                 
-                const result = await FileManagerService.loadEncryptedFile(
+                const result = await fileManagerService.loadEncryptedFile(
                   viewerMetadata.uuid, 
-                  derivedKey,
                   abortController.signal,
                   progressCallback
                 );
@@ -360,7 +355,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
     };
 
     loadFullImage();
-  }, [metadata.type, isPreviewData, viewerMetadata?.uuid, derivedKey, cancelImageLoading, isNavigating]);
+  }, [metadata.type, isPreviewData, viewerMetadata?.uuid, cancelImageLoading, isNavigating]);
 
   const renderFileContent = () => {
     const mimeType = metadata.type;
@@ -452,22 +447,17 @@ const FileViewer: React.FC<FileViewerProps> = ({
 
   // --- Save Metadata Handler ---
   const handleSaveMetadata = async () => {
-    if (!derivedKey) {
-      showAlert('Error', 'No derived key available.');
-      return;
-    }
     try {
-      await FileManagerService.updateFileMetadata(
+      await fileManagerService.updateFileMetadata(
         metadata.uuid,
         {
           name: metaEditor.name,
           folderPath: metaEditor.folderPath.split('/').filter(Boolean),
           tags: metaEditor.tags,
-        },
-        derivedKey
+        }
       );
       // Reload updated metadata from disk
-      const updatedMetadata = await FileManagerService.loadFileMetadata(metadata.uuid, derivedKey);
+      const updatedMetadata = await fileManagerService.loadFileMetadata(metadata.uuid);
       setViewerMetadata(updatedMetadata);
       setEditing(false);
       if (onMetadataUpdated) {
