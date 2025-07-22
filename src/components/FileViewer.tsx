@@ -45,6 +45,7 @@ import TextFile from './FileTypes/TextFile';
 import { AudioFile } from './FileTypes/AudioFile';
 import PDFFile from './FileTypes/PDFFile';
 import VideoFile from './FileTypes/VideoFile';
+import StreamingVideoFile from './FileTypes/StreamingVideoFile';
 import { FileMetadata, FileManagerService } from '../utils/FileManagerService';
 import { useFileManagerService } from '../hooks/useFileManagerService';
 import { usePasswordContext } from '../context/PasswordContext';
@@ -143,8 +144,44 @@ const FileViewer: React.FC<FileViewerProps> = ({
   
   // State for handling image preview/full loading
   const [imageFullData, setImageFullData] = React.useState<Uint8Array | null>(null);
-    const [isLoadingFullImage, setIsLoadingFullImage] = useState(false);
+  const [isLoadingFullImage, setIsLoadingFullImage] = useState(false);
   const abortControllerRef = React.useRef<AbortController | null>(null);
+  
+  // State for handling file loading (for large videos that weren't pre-loaded)
+  const [actualFileData, setActualFileData] = React.useState<Uint8Array>(fileData);
+  const [isLoadingFile, setIsLoadingFile] = React.useState(false);
+  const [fileLoadError, setFileLoadError] = React.useState<string | null>(null);
+  
+  // Load file if fileData is empty (for large videos)
+  React.useEffect(() => {
+    const shouldLoadFile = fileData.length === 0 && !isPreviewData && viewerMetadata.uuid;
+    
+    if (shouldLoadFile) {
+      console.log('[FileViewer] File data is empty, loading file:', viewerMetadata.name);
+      loadFileData();
+    } else {
+      setActualFileData(fileData);
+    }
+  }, [fileData, isPreviewData, viewerMetadata.uuid]);
+  
+  const loadFileData = async () => {
+    if (isLoadingFile) return;
+    
+    setIsLoadingFile(true);
+    setFileLoadError(null);
+    
+    try {
+      console.log('[FileViewer] Loading file data for:', viewerMetadata.name);
+      const result = await fileManagerService.loadEncryptedFile(viewerMetadata.uuid);
+      setActualFileData(result.fileData);
+      console.log('[FileViewer] File data loaded successfully');
+    } catch (error) {
+      console.error('[FileViewer] Failed to load file data:', error);
+      setFileLoadError(error instanceof Error ? error.message : 'Failed to load file');
+    } finally {
+      setIsLoadingFile(false);
+    }
+  };
   
   // Navigation debouncing
   const navigationTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -359,10 +396,36 @@ const FileViewer: React.FC<FileViewerProps> = ({
 
   const renderFileContent = () => {
     const mimeType = metadata.type;
+    
+    // Show loading state if file is being loaded
+    if (isLoadingFile) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading {metadata.name}...</Text>
+          <Text style={styles.loadingSubtext}>Decrypting file ({formatFileSize(metadata.size)})</Text>
+        </View>
+      );
+    }
+    
+    // Show error if file loading failed
+    if (fileLoadError) {
+      return (
+        <View style={styles.errorContainer}>
+          <WebCompatibleIcon name="error" size={64} color="#ff6b6b" />
+          <Text style={styles.errorText}>Failed to load file</Text>
+          <Text style={styles.errorSubtext}>{fileLoadError}</Text>
+          <Pressable style={styles.retryButton} onPress={loadFileData}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    
     let rendered;
     if (mimeType.startsWith('image/')) {
       // Use full image if loaded, otherwise use the provided data (which could be preview or full)
-      const displayData = imageFullData || fileData;
+      const displayData = imageFullData || actualFileData;
       const isShowingPreview = isPreviewData && !imageFullData;
       
       rendered = (
@@ -399,13 +462,33 @@ const FileViewer: React.FC<FileViewerProps> = ({
         </View>
       );
     } else if (mimeType.startsWith('text/') || mimeType === 'application/json') {
-      rendered = <TextFile fileData={fileData} />;
+      rendered = <TextFile fileData={actualFileData} />;
     } else if (mimeType.startsWith('audio/')) {
-      rendered = <AudioFile fileData={fileData} mimeType={mimeType} fileName={metadata.name} />;
+      rendered = <AudioFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
     } else if (mimeType.startsWith('video/')) {
-      rendered = <VideoFile fileData={fileData} mimeType={mimeType} fileName={metadata.name} />;
+      // Use streaming video component for files larger than 10MB
+      const isLargeVideo = metadata.size > 10 * 1024 * 1024;
+      
+      if (isLargeVideo) {
+        console.log('[FileViewer] Using streaming video for large file:', metadata.name, 'Size:', formatFileSize(metadata.size));
+        rendered = (
+          <StreamingVideoFile 
+            uuid={metadata.uuid} 
+            mimeType={mimeType} 
+            fileName={metadata.name}
+            totalSize={metadata.size}
+            fileData={actualFileData.length > 0 ? actualFileData : undefined} // Pass decrypted data if available
+            onLoadStart={() => console.log('[FileViewer] Streaming video load started')}
+            onLoadComplete={() => console.log('[FileViewer] Streaming video load completed')}
+            onError={(error) => console.error('[FileViewer] Streaming video error:', error)}
+          />
+        );
+      } else {
+        console.log('[FileViewer] Using regular video for small file:', metadata.name, 'Size:', formatFileSize(metadata.size));
+        rendered = <VideoFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
+      }
     } else if (mimeType === 'application/pdf') {
-      rendered = <PDFFile fileData={fileData} mimeType={mimeType} fileName={metadata.name} />;
+      rendered = <PDFFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
     } else {
       rendered = (
         <View style={styles.unsupportedContainer}>
@@ -735,6 +818,56 @@ const styles = StyleSheet.create({
   },
   navArrowDisabled: {
     opacity: 0.3,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: darkTheme.text,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  loadingSubtext: {
+    fontSize: 14,
+    color: darkTheme.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#ff6b6b',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: darkTheme.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

@@ -321,7 +321,7 @@ const getStyles = (theme: typeof import('../theme').darkTheme) => StyleSheet.cre
 
 const UploadScreen = () => {
   const { refreshFileList, encryptedFiles } = useFileContext();
-  const { password } = usePasswordContext();
+  const { password, derivedKey } = usePasswordContext();
   const fileManagerService = useFileManagerService();
   const [uploading, setUploading] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<Array<{ uri: string; name: string; type: string; size?: number; webFile?: File }>>([]);
@@ -333,6 +333,11 @@ const UploadScreen = () => {
   });
   const { theme } = React.useContext(ThemeContext);
   const styles = getStyles(theme);
+
+  // Add state to prevent multiple concurrent picker operations
+  const [isPickerActive, setIsPickerActive] = useState(false);
+
+  console.log('[UploadScreen] Component rendered, pendingFiles count:', pendingFiles.length);
 
   // Cleanup function to remove temporary files created by ImagePicker
   const cleanupTempFiles = async () => {
@@ -382,261 +387,524 @@ const UploadScreen = () => {
   }, []);
 
   const handleDocumentPicker = async () => {
-    // Use strict platform detection - only web if Platform.OS is explicitly 'web'
-    if (Platform.OS === 'web') {
-      console.log('[UploadScreen] Using web document picker');
-      // On web, use HTML file input for document selection
-      const win: any = (global as any).window || (global as any);
-      if (win && win.document) {
-        const input = win.document.createElement('input');
-        input.type = 'file';
-        input.multiple = true;
-        input.onchange = (event: any) => {
-          const files = Array.from(event.target.files || []);
-          if (files.length > 0) {
-            const newFiles = files.map((file: any) => ({
-              name: file.name,
-              type: file.type,
-              size: file.size,
-              uri: '', // Will be handled differently on web
-              webFile: file, // Store the actual File object for web
-            }));
-            setPendingFiles(prev => [...prev, ...newFiles]);
-          }
-        };
-        input.click();
-      } else {
-        showAlert('Error', 'File picker not available in this environment');
-      }
-      return;
-    }
-
-    if (!DocumentPicker) {
-      showAlert('Error', 'Document picker not available on this platform');
+    console.log('[UploadScreen] handleDocumentPicker called, isPickerActive:', isPickerActive);
+    
+    // Prevent multiple concurrent picker operations
+    if (isPickerActive) {
+      console.log('[UploadScreen] Picker already active, ignoring request');
       return;
     }
 
     try {
+      setIsPickerActive(true);
+      console.log('[UploadScreen] Set picker active to true');
+
+      // Use strict platform detection - only web if Platform.OS is explicitly 'web'
+      if (Platform.OS === 'web') {
+        console.log('[UploadScreen] Using web document picker');
+        // On web, use HTML file input for document selection
+        const win: any = (global as any).window || (global as any);
+        if (win && win.document) {
+          const input = win.document.createElement('input');
+          input.type = 'file';
+          input.multiple = true;
+          input.onchange = (event: any) => {
+            console.log('[UploadScreen] Web document picker onChange triggered');
+            const files = Array.from(event.target.files || []);
+            console.log('[UploadScreen] Selected files count:', files.length);
+            if (files.length > 0) {
+              const newFiles = files.map((file: any) => ({
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                uri: '', // Will be handled differently on web
+                webFile: file, // Store the actual File object for web
+              }));
+              console.log('[UploadScreen] Adding files to pending list:', newFiles.map(f => f.name));
+              setPendingFiles(prev => [...prev, ...newFiles]);
+            }
+            setIsPickerActive(false);
+          };
+          input.click();
+        } else {
+          console.error('[UploadScreen] Web environment not available');
+          showAlert('Error', 'File picker not available in this environment');
+          setIsPickerActive(false);
+        }
+        return;
+      }
+
+      if (!DocumentPicker) {
+        console.error('[UploadScreen] DocumentPicker not available');
+        showAlert('Error', 'Document picker not available on this platform');
+        setIsPickerActive(false);
+        return;
+      }
+
+      console.log('[UploadScreen] Launching native document picker');
       const result = await DocumentPicker.pickSingle({
         type: [DocumentPicker.types.allFiles],
       });
+      
+      console.log('[UploadScreen] Document picker result:', {
+        uri: result.uri,
+        name: result.name,
+        type: result.type,
+        size: result.size
+      });
+      
       setPendingFiles(prev => [...prev, {
         uri: result.uri,
         name: result.name || 'unknown',
         type: result.type || 'application/octet-stream',
       }]);
+      
+      console.log('[UploadScreen] Document added to pending files');
     } catch (error) {
-      if (DocumentPicker.isCancel(error)) {
-        console.log('User cancelled document picker');
+      console.log('[UploadScreen] Document picker error or cancellation:', error);
+      if (DocumentPicker && DocumentPicker.isCancel && DocumentPicker.isCancel(error)) {
+        console.log('[UploadScreen] User cancelled document picker');
       } else {
-        console.error('DocumentPicker Error:', error);
+        console.error('[UploadScreen] DocumentPicker Error:', error);
         showAlert('Error', 'Failed to pick document');
       }
+    } finally {
+      setIsPickerActive(false);
+      console.log('[UploadScreen] Set picker active to false');
     }
   };
 
   const handleImagePicker = () => {
     // Debug log to check platform detection
-    console.log('[UploadScreen] handleImagePicker called, Platform.OS:', Platform.OS);
+    console.log('[UploadScreen] handleImagePicker called, Platform.OS:', Platform.OS, 'isPickerActive:', isPickerActive);
     
-    // Use strict platform detection - only web if Platform.OS is explicitly 'web'
-    if (Platform.OS === 'web') {
-      console.log('[UploadScreen] Using web file picker');
-      // On web, use HTML file input for image selection
-      const win: any = (global as any).window || (global as any);
-      if (win && win.document) {
-        const input = win.document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        input.multiple = true;
-        input.onchange = (event: any) => {
-          const files = Array.from(event.target.files || []);
-          if (files.length > 0) {
-            const newFiles = files.map((file: any) => ({
-              name: file.name,
-              type: file.type,
-              size: file.size,
-              uri: '', // Will be handled differently on web
-              webFile: file, // Store the actual File object for web
-            }));
-            setPendingFiles(prev => [...prev, ...newFiles]);
-          }
-        };
-        input.click();
-      } else {
-        showAlert('Error', 'File picker not available in this environment');
+    // Prevent multiple concurrent picker operations
+    if (isPickerActive) {
+      console.log('[UploadScreen] Picker already active, ignoring image picker request');
+      return;
+    }
+
+    try {
+      setIsPickerActive(true);
+      console.log('[UploadScreen] Set image picker active to true');
+
+      // Use strict platform detection - only web if Platform.OS is explicitly 'web'
+      if (Platform.OS === 'web') {
+        console.log('[UploadScreen] Using web file picker for images');
+        // On web, use HTML file input for image selection
+        const win: any = (global as any).window || (global as any);
+        if (win && win.document) {
+          const input = win.document.createElement('input');
+          input.type = 'file';
+          input.accept = 'image/*';
+          input.multiple = true;
+          input.onchange = (event: any) => {
+            console.log('[UploadScreen] Web image picker onChange triggered');
+            const files = Array.from(event.target.files || []);
+            console.log('[UploadScreen] Selected image files count:', files.length);
+            if (files.length > 0) {
+              const newFiles = files.map((file: any) => ({
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                uri: '', // Will be handled differently on web
+                webFile: file, // Store the actual File object for web
+              }));
+              console.log('[UploadScreen] Adding image files to pending list:', newFiles.map(f => f.name));
+              setPendingFiles(prev => [...prev, ...newFiles]);
+            }
+            setIsPickerActive(false);
+            console.log('[UploadScreen] Web image picker completed, set active to false');
+          };
+          input.click();
+        } else {
+          console.error('[UploadScreen] Web environment not available for image picker');
+          showAlert('Error', 'File picker not available in this environment');
+          setIsPickerActive(false);
+        }
+        return;
       }
-      return;
-    }
 
-    console.log('[UploadScreen] Using native image picker, launchImageLibrary available:', !!launchImageLibrary);
-    
-    if (!launchImageLibrary) {
-      showAlert('Error', 'Image picker not available on this platform');
-      return;
-    }
+      console.log('[UploadScreen] Using native image picker, launchImageLibrary available:', !!launchImageLibrary);
+      
+      if (!launchImageLibrary) {
+        console.error('[UploadScreen] launchImageLibrary not available');
+        showAlert('Error', 'Image picker not available on this platform');
+        setIsPickerActive(false);
+        return;
+      }
 
-    launchImageLibrary(
-      {
+      console.log('[UploadScreen] Launching native image picker with options:', {
         mediaType: 'photo',
         quality: 0.5,
         includeBase64: false,
         selectionLimit: 0,
-      },
-      // @ts-ignore
-      (response) => {
-        if (response.didCancel) {
-          // User cancelled image picker
-          return;
-        }
-        if (response.errorCode) {
-          showAlert('Error', 'Image picker error: ' + response.errorMessage);
-          return;
-        }
-        if (Array.isArray(response.assets) && response.assets.length > 0) {
-          setPendingFiles(prev => [
-            ...prev, // @ts-ignore
-            ...response.assets?.filter(asset => asset && asset.uri) // @ts-ignore
-              .map(asset => ({
+      });
+
+      launchImageLibrary(
+        {
+          mediaType: 'photo',
+          quality: 0.5,
+          includeBase64: false,
+          selectionLimit: 0,
+        },
+        // @ts-ignore
+        (response) => {
+          console.log('[UploadScreen] Image picker callback triggered');
+          console.log('[UploadScreen] Image picker response:', {
+            didCancel: response.didCancel,
+            errorCode: response.errorCode,
+            errorMessage: response.errorMessage,
+            assetsCount: response.assets ? response.assets.length : 0
+          });
+
+          try {
+            if (response.didCancel) {
+              console.log('[UploadScreen] User cancelled image picker');
+              return;
+            }
+            if (response.errorCode) {
+              console.error('[UploadScreen] Image picker error:', response.errorCode, response.errorMessage);
+              showAlert('Error', 'Image picker error: ' + response.errorMessage);
+              return;
+            }
+            if (Array.isArray(response.assets) && response.assets.length > 0) {
+              console.log('[UploadScreen] Processing', response.assets.length, 'image assets');
+              const validAssets = response.assets.filter((asset: any) => asset && asset.uri);
+              console.log('[UploadScreen] Valid assets count:', validAssets.length);
+              
+              const newFiles = validAssets.map((asset: any) => ({
                 uri: asset.uri!,
                 name: asset.fileName || 'image.jpg',
                 type: asset.type || 'image/jpeg',
-              })) ?? []
-          ]);
+              }));
+              
+              console.log('[UploadScreen] Adding image assets to pending files:', newFiles.map((f: any) => f.name));
+              setPendingFiles(prev => [...prev, ...newFiles]);
+            } else {
+              console.log('[UploadScreen] No valid image assets in response');
+            }
+          } catch (callbackError) {
+            console.error('[UploadScreen] Error in image picker callback:', callbackError);
+            showAlert('Error', 'Error processing selected images');
+          } finally {
+            setIsPickerActive(false);
+            console.log('[UploadScreen] Image picker completed, set active to false');
+          }
         }
-      }
-    );
+      );
+    } catch (error) {
+      console.error('[UploadScreen] Error launching image picker:', error);
+      showAlert('Error', 'Failed to launch image picker');
+      setIsPickerActive(false);
+    }
   };
 
   const handleVideoPicker = () => {
     // Debug log to check platform detection
-    console.log('[UploadScreen] handleVideoPicker called, Platform.OS:', Platform.OS);
+    console.log('[UploadScreen] handleVideoPicker called, Platform.OS:', Platform.OS, 'isPickerActive:', isPickerActive);
     
-    // Use strict platform detection - only web if Platform.OS is explicitly 'web'
-    if (Platform.OS === 'web') {
-      console.log('[UploadScreen] Using web video picker');
-      // On web, use HTML file input for video selection
-      const win: any = (global as any).window || (global as any);
-      if (win && win.document) {
-        const input = win.document.createElement('input');
-        input.type = 'file';
-        input.accept = 'video/*';
-        input.multiple = true;
-        input.onchange = (event: any) => {
-          const files = Array.from(event.target.files || []);
-          if (files.length > 0) {
-            const newFiles = files.map((file: any) => ({
-              name: file.name,
-              type: file.type,
-              size: file.size,
-              uri: '', // Will be handled differently on web
-              webFile: file, // Store the actual File object for web
-            }));
-            setPendingFiles(prev => [...prev, ...newFiles]);
-          }
-        };
-        input.click();
-      } else {
-        showAlert('Error', 'File picker not available in this environment');
+    // Prevent multiple concurrent picker operations
+    if (isPickerActive) {
+      console.log('[UploadScreen] Picker already active, ignoring video picker request');
+      return;
+    }
+
+    try {
+      setIsPickerActive(true);
+      console.log('[UploadScreen] Set video picker active to true');
+
+      // Use strict platform detection - only web if Platform.OS is explicitly 'web'
+      if (Platform.OS === 'web') {
+        console.log('[UploadScreen] Using web video picker');
+        // On web, use HTML file input for video selection
+        const win: any = (global as any).window || (global as any);
+        if (win && win.document) {
+          const input = win.document.createElement('input');
+          input.type = 'file';
+          input.accept = 'video/*';
+          input.multiple = true;
+          input.onchange = (event: any) => {
+            console.log('[UploadScreen] Web video picker onChange triggered');
+            const files = Array.from(event.target.files || []);
+            console.log('[UploadScreen] Selected video files count:', files.length);
+            if (files.length > 0) {
+              const newFiles = files.map((file: any) => ({
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                uri: '', // Will be handled differently on web
+                webFile: file, // Store the actual File object for web
+              }));
+              console.log('[UploadScreen] Adding video files to pending list:', newFiles.map((f: any) => f.name));
+              setPendingFiles(prev => [...prev, ...newFiles]);
+            }
+            setIsPickerActive(false);
+            console.log('[UploadScreen] Web video picker completed, set active to false');
+          };
+          input.click();
+        } else {
+          console.error('[UploadScreen] Web environment not available for video picker');
+          showAlert('Error', 'File picker not available in this environment');
+          setIsPickerActive(false);
+        }
+        return;
       }
-      return;
-    }
 
-    console.log('[UploadScreen] Using native video picker, launchImageLibrary available:', !!launchImageLibrary);
-    
-    if (!launchImageLibrary) {
-      showAlert('Error', 'Video picker not available on this platform');
-      return;
-    }
+      console.log('[UploadScreen] Using native video picker, launchImageLibrary available:', !!launchImageLibrary);
+      
+      if (!launchImageLibrary) {
+        console.error('[UploadScreen] launchImageLibrary not available for video');
+        showAlert('Error', 'Video picker not available on this platform');
+        setIsPickerActive(false);
+        return;
+      }
 
-    launchImageLibrary(
-      {
+      console.log('[UploadScreen] Launching native video picker with options:', {
         mediaType: 'video',
         quality: 0.8,
         includeBase64: false,
-      },
-      // @ts-ignore
-      (response) => {
-        if (response.assets && response.assets[0]) {
-          const asset = response.assets[0];
-          setPendingFiles(prev => [...prev, {
-            uri: asset.uri!,
-            name: asset.fileName || 'video.mp4',
-            type: asset.type || 'video/mp4',
-          }]);
+      });
+
+      // Use a flag to ensure callback is only processed once
+      let callbackProcessed = false;
+      
+      // Add a timeout to prevent hanging
+      const timeoutId = setTimeout(() => {
+        if (!callbackProcessed) {
+          console.warn('[UploadScreen] Video picker timeout reached, resetting picker state');
+          callbackProcessed = true;
+          setIsPickerActive(false);
         }
-      }
-    );
+      }, 30000); // 30 second timeout
+
+      launchImageLibrary(
+        {
+          mediaType: 'video',
+          quality: 0.8,
+          includeBase64: false,
+        },
+        // @ts-ignore
+        (response) => {
+          console.log('[UploadScreen] Video picker callback triggered, callbackProcessed:', callbackProcessed);
+          
+          // Clear the timeout since callback was received
+          clearTimeout(timeoutId);
+          
+          // Prevent multiple callback executions
+          if (callbackProcessed) {
+            console.warn('[UploadScreen] Video picker callback already processed, ignoring duplicate call');
+            return;
+          }
+          callbackProcessed = true;
+
+          console.log('[UploadScreen] Video picker response:', {
+            didCancel: response.didCancel,
+            errorCode: response.errorCode,
+            errorMessage: response.errorMessage,
+            assetsCount: response.assets ? response.assets.length : 0
+          });
+
+          try {
+            if (response.didCancel) {
+              console.log('[UploadScreen] User cancelled video picker');
+              return;
+            }
+            if (response.errorCode) {
+              console.error('[UploadScreen] Video picker error:', response.errorCode, response.errorMessage);
+              showAlert('Error', 'Video picker error: ' + response.errorMessage);
+              return;
+            }
+            if (response.assets && response.assets[0]) {
+              console.log('[UploadScreen] Processing video asset');
+              const asset = response.assets[0];
+              console.log('[UploadScreen] Video asset details:', {
+                uri: asset.uri,
+                fileName: asset.fileName,
+                type: asset.type,
+                fileSize: asset.fileSize
+              });
+              
+              const newFile = {
+                uri: asset.uri!,
+                name: asset.fileName || 'video.mp4',
+                type: asset.type || 'video/mp4',
+              };
+              
+              console.log('[UploadScreen] Adding video asset to pending files:', newFile.name);
+              setPendingFiles(prev => [...prev, newFile]);
+            } else {
+              console.log('[UploadScreen] No valid video asset in response');
+            }
+          } catch (callbackError) {
+            console.error('[UploadScreen] Error in video picker callback:', callbackError);
+            showAlert('Error', 'Error processing selected video');
+          } finally {
+            setIsPickerActive(false);
+            console.log('[UploadScreen] Video picker completed, set active to false');
+          }
+        }
+      );
+    } catch (error) {
+      console.error('[UploadScreen] Error launching video picker:', error);
+      showAlert('Error', 'Failed to launch video picker');
+      setIsPickerActive(false);
+    }
   };
 
   const encryptAndSaveAllFiles = async () => {
+    console.log('[UploadScreen] encryptAndSaveAllFiles started, pendingFiles count:', pendingFiles.length);
+    
+    if (pendingFiles.length === 0) {
+      console.log('[UploadScreen] No pending files to upload');
+      showAlert('Info', 'No files selected for upload');
+      return;
+    }
+
     setUploading(true);
+    console.log('[UploadScreen] Set uploading state to true');
+    
     try {
-      for (const file of pendingFiles) {
+      for (let i = 0; i < pendingFiles.length; i++) {
+        const file = pendingFiles[i];
+        console.log(`[UploadScreen] Processing file ${i + 1}/${pendingFiles.length}: ${file.name}`);
+        console.log(`[UploadScreen] File details:`, {
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          hasUri: !!file.uri,
+          hasWebFile: !!file.webFile,
+          platform: Platform.OS
+        });
+
         // Read file data using cross-platform approach
         let fileData: Uint8Array;
         
         if ((Platform as any).OS === 'web' && file.webFile) {
+          console.log(`[UploadScreen] Reading web file: ${file.name}`);
           // On web, read from the File object directly
           try {
             const arrayBuffer = await file.webFile.arrayBuffer();
             fileData = new Uint8Array(arrayBuffer);
+            console.log(`[UploadScreen] Successfully read web file, size: ${fileData.length} bytes`);
           } catch (error) {
-            console.error('Failed to read web file:', error);
+            console.error(`[UploadScreen] Failed to read web file ${file.name}:`, error);
             fileData = new Uint8Array();
           }
         } else if (file.uri) {
+          console.log(`[UploadScreen] Reading file from URI: ${file.uri}`);
           if ((Platform as any).OS === 'web') {
             // On web, URI might be a blob URL from file picker
             try {
+              console.log(`[UploadScreen] Fetching web blob from URI: ${file.uri}`);
               const response = await fetch(file.uri);
               const arrayBuffer = await response.arrayBuffer();
               fileData = new Uint8Array(arrayBuffer);
+              console.log(`[UploadScreen] Successfully read web blob, size: ${fileData.length} bytes`);
             } catch (error) {
-              console.error('Failed to read file on web:', error);
+              console.error(`[UploadScreen] Failed to read file on web from URI ${file.uri}:`, error);
               // Fallback to empty data
               fileData = new Uint8Array();
             }
           } else {
             // On native, use RNFS to read the file
             try {
+              console.log(`[UploadScreen] Reading native file with RNFS from: ${file.uri}`);
               if (RNFS) {
                 const base64 = await RNFS.readFile(file.uri, 'base64');
+                console.log(`[UploadScreen] Read base64 data, length: ${base64.length}`);
                 fileData = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+                console.log(`[UploadScreen] Successfully converted to Uint8Array, size: ${fileData.length} bytes`);
               } else {
-                console.error('RNFS not available on native platform');
+                console.error('[UploadScreen] RNFS not available on native platform');
                 fileData = new Uint8Array();
               }
             } catch (error) {
-              console.error('Failed to read file on native:', error);
+              console.error(`[UploadScreen] Failed to read native file ${file.name} from ${file.uri}:`, error);
               fileData = new Uint8Array();
             }
           }
         } else {
+          console.error(`[UploadScreen] No valid data source for file: ${file.name}`);
           fileData = new Uint8Array();
         }
-        await fileManagerService.saveEncryptedFile(
-          fileData,
-          file.name,
-          file.type,
-          metaEditor.folderPath.split('/').filter(Boolean),
-          metaEditor.tags
-        );
+
+        if (fileData.length === 0) {
+          console.error(`[UploadScreen] File ${file.name} has no data, skipping`);
+          continue;
+        }
+
+        console.log(`[UploadScreen] Encrypting and saving file: ${file.name}, data size: ${fileData.length} bytes`);
+        console.log(`[UploadScreen] Folder path: ${metaEditor.folderPath}, tags: ${metaEditor.tags.join(', ')}`);
+        
+        // Check if this is a large video file that might benefit from streaming
+        const isLargeVideo = file.type.startsWith('video/') && fileData.length > 10 * 1024 * 1024;
+        if (isLargeVideo) {
+          console.log(`[UploadScreen] Large video detected (${(fileData.length / (1024 * 1024)).toFixed(1)}MB), will prepare for streaming after upload`);
+        }
+        
+        try {
+          const savedMetadata = await fileManagerService.saveEncryptedFile(
+            fileData,
+            file.name,
+            file.type,
+            metaEditor.folderPath.split('/').filter(Boolean),
+            metaEditor.tags
+          );
+          console.log(`[UploadScreen] Successfully saved encrypted file: ${file.name}`);
+          
+          // For large video files, prepare streaming metadata in the background
+          if (isLargeVideo && savedMetadata?.uuid && derivedKey) {
+            console.log(`[UploadScreen] Preparing streaming metadata for large video: ${file.name}`);
+            try {
+              const { VideoStreamingService } = await import('../utils/VideoStreamingService');
+              
+              // Prepare streaming in the background without blocking the upload process
+              VideoStreamingService.prepareVideoForStreaming(
+                savedMetadata.uuid, 
+                fileData, 
+                file.type, 
+                file.name, 
+                derivedKey
+              )
+                .then(() => {
+                  console.log(`[UploadScreen] Streaming preparation completed for: ${file.name}`);
+                })
+                .catch((error) => {
+                  console.warn(`[UploadScreen] Streaming preparation failed for ${file.name}:`, error);
+                });
+            } catch (importError) {
+              console.warn(`[UploadScreen] Failed to import streaming dependencies:`, importError);
+            }
+          }
+        } catch (saveError) {
+          console.error(`[UploadScreen] Failed to save encrypted file ${file.name}:`, saveError);
+          throw saveError;
+        }
       }
+      
+      console.log(`[UploadScreen] Successfully uploaded and encrypted ${pendingFiles.length} file(s)`);
       showAlert('Success', `Uploaded and encrypted ${pendingFiles.length} file(s) successfully`);
       
       // Clean up temporary files after successful upload
+      console.log('[UploadScreen] Starting cleanup of temporary files');
       await cleanupTempFiles();
       
+      console.log('[UploadScreen] Clearing pending files and metadata');
       setPendingFiles([]);
       metaEditor.setTags([]);
       metaEditor.setFolderPath('');
+      
+      console.log('[UploadScreen] Refreshing file list');
       await refreshFileList();
+      
+      console.log('[UploadScreen] Upload process completed successfully');
     } catch (error) {
-      console.error('File upload error:', error);
-      showAlert('Error', 'Failed to upload and encrypt files');
+      console.error('[UploadScreen] File upload error:', error);
+      showAlert('Error', 'Failed to upload and encrypt files: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setUploading(false);
+      console.log('[UploadScreen] Set uploading state to false');
     }
   };
 
@@ -688,9 +956,9 @@ const UploadScreen = () => {
           {uploadOptions.map((option) => (
             <TouchableOpacity
               key={option.id}
-              style={[styles.optionCard, { opacity: uploading ? 0.5 : 1 }]}
+              style={[styles.optionCard, { opacity: (uploading || isPickerActive) ? 0.5 : 1 }]}
               onPress={option.onPress}
-              disabled={uploading}
+              disabled={uploading || isPickerActive}
             >
               <View style={[styles.optionIcon, { backgroundColor: option.color }]}> 
                 <WebCompatibleIcon name={option.icon} size={28} color={theme.chipText} />

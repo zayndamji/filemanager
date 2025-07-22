@@ -233,6 +233,19 @@ const FileListScreen = () => {
     }
     
     const start = Date.now();
+    
+    // For large video files (>10MB), skip loading here and let FileViewer handle it
+    const isLargeVideo = file.metadata.type.startsWith('video/') && file.metadata.size > 10 * 1024 * 1024;
+    
+    if (isLargeVideo) {
+      console.log('[FileListScreen] Opening large video file in viewer without pre-loading:', file.metadata.name);
+      setSelectedFile(file);
+      setFileData(new Uint8Array(0)); // Empty data, FileViewer will handle loading
+      setIsPreviewData(false);
+      setViewerVisible(true);
+      return;
+    }
+    
     try {
       // For image files, try to load preview first for faster initial display
       if (file.metadata.type.startsWith('image/')) {
