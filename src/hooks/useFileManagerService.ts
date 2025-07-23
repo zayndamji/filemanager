@@ -26,6 +26,17 @@ export const useFileManagerService = () => {
       return FileManagerService.saveEncryptedFile(fileData, originalFileName, mimeType, key, folderPath, tags);
     },
 
+    saveEncryptedVideoChunked: async (
+      fileData: Uint8Array,
+      originalFileName: string,
+      mimeType: string,
+      folderPath: string[] = [],
+      tags: string[] = []
+    ): Promise<EncryptedFile> => {
+      const key = checkDerivedKey();
+      return FileManagerService.saveEncryptedVideoChunked(fileData, originalFileName, mimeType, key, folderPath, tags);
+    },
+
     loadEncryptedFile: async (
       uuid: string,
       abortSignal?: AbortSignal,
@@ -33,6 +44,16 @@ export const useFileManagerService = () => {
     ): Promise<{ fileData: Uint8Array; metadata: FileMetadata }> => {
       const key = checkDerivedKey();
       return FileManagerService.loadEncryptedFile(uuid, key, abortSignal, progressCallback);
+    },
+
+    loadEncryptedVideoChunked: async (
+      uuid: string,
+      abortSignal?: AbortSignal,
+      progressCallback?: (chunkIndex: number, totalChunks: number) => void,
+      targetTempPath?: string
+    ): Promise<{ fileData?: Uint8Array; tempFilePath?: string; metadata: FileMetadata; totalChunks: number }> => {
+      const key = checkDerivedKey();
+      return FileManagerService.loadEncryptedVideoChunked(uuid, key, abortSignal, progressCallback, targetTempPath);
     },
 
     loadFileMetadata: async (uuid: string): Promise<FileMetadata> => {

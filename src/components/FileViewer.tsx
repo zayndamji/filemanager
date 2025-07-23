@@ -483,9 +483,9 @@ const FileViewer: React.FC<FileViewerProps> = ({
       // For videos, always pass UUID for decryption to avoid duplicate decryption in FileViewer
       // VideoFile component will handle the decryption
       if (actualFileData.length > 0) {
-        rendered = <VideoFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
+        rendered = <VideoFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} onClose={onClose} />;
       } else {
-        rendered = <VideoFile uuid={metadata.uuid} mimeType={mimeType} fileName={metadata.name} totalSize={metadata.size} />;
+        rendered = <VideoFile uuid={metadata.uuid} mimeType={mimeType} fileName={metadata.name} totalSize={metadata.size} onClose={onClose} />;
       }
     } else if (mimeType === 'application/pdf') {
       rendered = <PDFFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;

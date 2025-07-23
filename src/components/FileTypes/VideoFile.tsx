@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Platform, View, Text, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
 import { FileManagerService } from '../../utils/FileManagerService';
 import { ThemeContext } from '../../theme';
@@ -19,6 +19,7 @@ export interface VideoFileProps {
   fileName?: string;
   uuid?: string; // Optional - for direct decryption
   totalSize?: number; // Optional - for progress display
+  onClose?: () => void; // Optional - called when video is closed/deleted
 }
 
 const VideoFileNative: React.FC<VideoFileProps> = ({ 
@@ -26,12 +27,15 @@ const VideoFileNative: React.FC<VideoFileProps> = ({
   mimeType, 
   fileName = 'video.mp4',
   uuid,
-  totalSize = 0
+  totalSize = 0,
+  onClose
 }) => {
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [tempFilePath, setTempFilePath] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState<{ current: number; total: number } | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const { theme } = useContext(ThemeContext);
   const { derivedKey } = usePasswordContext();
   const fileManagerService = useFileManagerService();
@@ -54,9 +58,22 @@ const VideoFileNative: React.FC<VideoFileProps> = ({
     // eslint-disable-next-line
   }, [fileData, uuid, derivedKey]);
 
+  // Clean up when component unmounts or onClose is called
+  useEffect(() => {
+    return () => {
+      if (onClose && tempFilePath) {
+        // Cleanup will be handled by the cleanup() function
+        cleanup();
+      }
+    };
+  }, [onClose, tempFilePath]);
+
   const initializeVideo = async () => {
     try {
       console.log('[VideoFile] Initializing video for playback using temp file approach');
+      
+      // Create abort controller for this operation
+      abortControllerRef.current = new AbortController();
       
       // Cleanup any existing temp file first
       if (tempFilePath) {
@@ -72,16 +89,68 @@ const VideoFileNative: React.FC<VideoFileProps> = ({
         console.log('[VideoFile] Using provided file data');
         videoData = fileData;
       } else if (uuid && derivedKey) {
-        // Decrypt the file directly
-        console.log('[VideoFile] Loading and decrypting video file:', uuid);
+        // Check if this is a chunked video first
+        console.log('[VideoFile] Loading video file metadata:', uuid);
         setLoading(true);
         setError(null);
+        setLoadingProgress(null);
         
-        const result = await fileManagerService.loadEncryptedFile(uuid);
-        videoData = result.fileData;
-        console.log('[VideoFile] Video file decrypted successfully');
+        try {
+          const metadata = await fileManagerService.loadFileMetadata(uuid);
+          const chunkedMetadata = metadata as any;
+          
+          if (chunkedMetadata.isChunked && chunkedMetadata.version === '2.0') {
+            // This is a chunked video - use chunked loading with progress
+            console.log('[VideoFile] Detected chunked video, loading chunks:', uuid);
+            setLoadingProgress({ current: 0, total: chunkedMetadata.totalChunks });
+            
+            const result = await fileManagerService.loadEncryptedVideoChunked(
+              uuid, 
+              abortControllerRef.current?.signal, // Pass abort signal
+              (chunkIndex, totalChunks) => {
+                console.log(`[VideoFile] Loading chunk ${chunkIndex}/${totalChunks}`);
+                setLoadingProgress({ current: chunkIndex, total: totalChunks });
+              }
+            );
+            
+            if (result.fileData) {
+              videoData = result.fileData;
+              console.log('[VideoFile] Chunked video loaded successfully');
+            } else {
+              throw new Error('Failed to load chunked video data');
+            }
+          } else {
+            // Legacy single-file video
+            console.log('[VideoFile] Loading legacy single-file video:', uuid);
+            const result = await fileManagerService.loadEncryptedFile(
+              uuid, 
+              abortControllerRef.current?.signal
+            );
+            videoData = result.fileData;
+            console.log('[VideoFile] Legacy video file decrypted successfully');
+          }
+        } catch (metadataError) {
+          if (abortControllerRef.current?.signal.aborted) {
+            console.log('[VideoFile] Video loading was cancelled');
+            return;
+          }
+          console.warn('[VideoFile] Could not load metadata, trying legacy loading:', metadataError);
+          // Fallback to legacy loading if metadata fails
+          const result = await fileManagerService.loadEncryptedFile(
+            uuid, 
+            abortControllerRef.current?.signal
+          );
+          videoData = result.fileData;
+          console.log('[VideoFile] Fallback video file decrypted successfully');
+        }
       } else {
         throw new Error('No file data provided and no UUID/key available for decryption');
+      }
+      
+      // Check if operation was cancelled
+      if (abortControllerRef.current?.signal.aborted) {
+        console.log('[VideoFile] Video initialization was cancelled');
+        return;
       }
       
       // Always use temp file approach for better compatibility
@@ -90,14 +159,28 @@ const VideoFileNative: React.FC<VideoFileProps> = ({
       setVideoUri(`file://${tempPath}`);
       console.log('[VideoFile] Temp file created for video:', tempPath);
     } catch (error) {
+      if (abortControllerRef.current?.signal.aborted) {
+        console.log('[VideoFile] Video initialization was cancelled');
+        return;
+      }
       console.error('[VideoFile] Error initializing video:', error);
       setError('Failed to initialize video for playback');
     } finally {
       setLoading(false);
+      setLoadingProgress(null);
+      abortControllerRef.current = null;
     }
   };
 
   const cleanup = async () => {
+    // Cancel any ongoing operations
+    if (abortControllerRef.current) {
+      console.log('[VideoFile] Aborting ongoing video loading operation');
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    
+    // Clean up temp file
     if (tempFilePath) {
       try {
         await FileManagerService.deleteTempFile(tempFilePath);
@@ -107,6 +190,12 @@ const VideoFileNative: React.FC<VideoFileProps> = ({
         console.warn('[VideoFile] Failed to cleanup temp file:', cleanupError);
       }
     }
+    
+    // Reset state
+    setVideoUri(null);
+    setLoading(false);
+    setLoadingProgress(null);
+    setError(null);
   };
   
   return (
@@ -114,7 +203,30 @@ const VideoFileNative: React.FC<VideoFileProps> = ({
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.accent} />
-          <Text style={[styles.loadingText, { color: theme.text }]}>Decrypting video...</Text>
+          <Text style={[styles.loadingText, { color: theme.text }]}>
+            {loadingProgress 
+              ? `Decrypting video chunks... (${loadingProgress.current}/${loadingProgress.total})`
+              : 'Decrypting video...'
+            }
+          </Text>
+          {loadingProgress && (
+            <View style={styles.progressContainer}>
+              <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
+                <View 
+                  style={[
+                    styles.progressFill, 
+                    { 
+                      backgroundColor: theme.accent,
+                      width: `${(loadingProgress.current / loadingProgress.total) * 100}%`
+                    }
+                  ]} 
+                />
+              </View>
+              <Text style={[styles.progressText, { color: theme.textSecondary }]}>
+                {((loadingProgress.current / loadingProgress.total) * 100).toFixed(0)}%
+              </Text>
+            </View>
+          )}
           {totalSize > 0 && (
             <Text style={[styles.progressText, { color: theme.textSecondary }]}>
               Size: {(totalSize / (1024 * 1024)).toFixed(1)} MB
@@ -167,7 +279,8 @@ const VideoFileWeb: React.FC<VideoFileProps> = ({
   mimeType, 
   fileName = 'video.mp4',
   uuid,
-  totalSize = 0
+  totalSize = 0,
+  onClose
 }) => {
   const { theme } = useContext(ThemeContext);
   const { derivedKey } = usePasswordContext();
@@ -175,6 +288,8 @@ const VideoFileWeb: React.FC<VideoFileProps> = ({
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingProgress, setLoadingProgress] = useState<{ current: number; total: number } | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     console.log('[VideoFileWeb] useEffect triggered', { 
@@ -187,6 +302,9 @@ const VideoFileWeb: React.FC<VideoFileProps> = ({
     if (!videoUri && !loading && ((fileData && fileData.length > 0) || (uuid && derivedKey))) {
       const initializeVideo = async () => {
         try {
+          // Create abort controller for this operation
+          abortControllerRef.current = new AbortController();
+          
           // Cleanup any existing video URI first
           if (videoUri) {
             console.log('[VideoFileWeb] Cleaning up existing video URI');
@@ -202,16 +320,68 @@ const VideoFileWeb: React.FC<VideoFileProps> = ({
             console.log('[VideoFileWeb] Using provided file data');
             videoData = fileData;
           } else if (uuid && derivedKey) {
-            // Decrypt the file directly
-            console.log('[VideoFileWeb] Loading and decrypting video file:', uuid);
+            // Check if this is a chunked video first
+            console.log('[VideoFileWeb] Loading video file metadata:', uuid);
             setLoading(true);
             setError(null);
+            setLoadingProgress(null);
             
-            const result = await fileManagerService.loadEncryptedFile(uuid);
-            videoData = result.fileData;
-            console.log('[VideoFileWeb] Video file decrypted successfully');
+            try {
+              const metadata = await fileManagerService.loadFileMetadata(uuid);
+              const chunkedMetadata = metadata as any;
+              
+              if (chunkedMetadata.isChunked && chunkedMetadata.version === '2.0') {
+                // This is a chunked video - use chunked loading with progress
+                console.log('[VideoFileWeb] Detected chunked video, loading chunks:', uuid);
+                setLoadingProgress({ current: 0, total: chunkedMetadata.totalChunks });
+                
+                const result = await fileManagerService.loadEncryptedVideoChunked(
+                  uuid, 
+                  abortControllerRef.current?.signal, // Pass abort signal
+                  (chunkIndex, totalChunks) => {
+                    console.log(`[VideoFileWeb] Loading chunk ${chunkIndex}/${totalChunks}`);
+                    setLoadingProgress({ current: chunkIndex, total: totalChunks });
+                  }
+                );
+                
+                if (result.fileData) {
+                  videoData = result.fileData;
+                  console.log('[VideoFileWeb] Chunked video loaded successfully');
+                } else {
+                  throw new Error('Failed to load chunked video data');
+                }
+              } else {
+                // Legacy single-file video
+                console.log('[VideoFileWeb] Loading legacy single-file video:', uuid);
+                const result = await fileManagerService.loadEncryptedFile(
+                  uuid, 
+                  abortControllerRef.current?.signal
+                );
+                videoData = result.fileData;
+                console.log('[VideoFileWeb] Legacy video file decrypted successfully');
+              }
+            } catch (metadataError) {
+              if (abortControllerRef.current?.signal.aborted) {
+                console.log('[VideoFileWeb] Video loading was cancelled');
+                return;
+              }
+              console.warn('[VideoFileWeb] Could not load metadata, trying legacy loading:', metadataError);
+              // Fallback to legacy loading if metadata fails
+              const result = await fileManagerService.loadEncryptedFile(
+                uuid, 
+                abortControllerRef.current?.signal
+              );
+              videoData = result.fileData;
+              console.log('[VideoFileWeb] Fallback video file decrypted successfully');
+            }
           } else {
             throw new Error('No file data provided and no UUID/key available for decryption');
+          }
+          
+          // Check if operation was cancelled
+          if (abortControllerRef.current?.signal.aborted) {
+            console.log('[VideoFileWeb] Video initialization was cancelled');
+            return;
           }
           
           // For web, create blob URL instead of data URI for better performance
@@ -226,10 +396,16 @@ const VideoFileWeb: React.FC<VideoFileProps> = ({
             setVideoUri(null);
           }
         } catch (error) {
+          if (abortControllerRef.current?.signal.aborted) {
+            console.log('[VideoFileWeb] Video initialization was cancelled');
+            return;
+          }
           console.error('[VideoFileWeb] Error initializing video:', error);
           setError('Failed to initialize video for playback');
         } finally {
           setLoading(false);
+          setLoadingProgress(null);
+          abortControllerRef.current = null;
         }
       };
 
@@ -238,11 +414,30 @@ const VideoFileWeb: React.FC<VideoFileProps> = ({
     
     // Cleanup function
     return () => {
+      // Cancel any ongoing operations
+      if (abortControllerRef.current) {
+        console.log('[VideoFileWeb] Aborting ongoing video loading operation');
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      
       if (videoUri) {
         (globalThis as any).URL.revokeObjectURL(videoUri);
       }
     };
   }, [fileData, uuid, mimeType, derivedKey]);
+
+  // Clean up when component unmounts or onClose is called
+  useEffect(() => {
+    return () => {
+      if (onClose && videoUri) {
+        // Cleanup will be handled by the cleanup function above
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+      }
+    };
+  }, [onClose, videoUri]);
 
   return (
     <div style={{ 
@@ -257,7 +452,36 @@ const VideoFileWeb: React.FC<VideoFileProps> = ({
     }}>
       {loading ? (
         <>
-          <div style={{ color: theme.text, marginBottom: 8 }}>Decrypting video...</div>
+          <div style={{ color: theme.text, marginBottom: 8 }}>
+            {loadingProgress 
+              ? `Decrypting video chunks... (${loadingProgress.current}/${loadingProgress.total})`
+              : 'Decrypting video...'
+            }
+          </div>
+          {loadingProgress && (
+            <div style={{ width: '80%', marginBottom: 8 }}>
+              <div style={{ 
+                width: '100%', 
+                height: 6, 
+                backgroundColor: theme.border, 
+                borderRadius: 3, 
+                overflow: 'hidden',
+                marginBottom: 4
+              }}>
+                <div 
+                  style={{ 
+                    height: '100%', 
+                    backgroundColor: theme.accent,
+                    width: `${(loadingProgress.current / loadingProgress.total) * 100}%`,
+                    borderRadius: 3
+                  }} 
+                />
+              </div>
+              <div style={{ color: theme.textSecondary, fontSize: 12, textAlign: 'center' }}>
+                {((loadingProgress.current / loadingProgress.total) * 100).toFixed(0)}%
+              </div>
+            </div>
+          )}
           {totalSize > 0 && (
             <div style={{ color: theme.textSecondary, fontSize: 12 }}>
               Size: {(totalSize / (1024 * 1024)).toFixed(1)} MB
@@ -333,6 +557,23 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: 12,
     textAlign: 'center',
+  },
+  progressContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  progressBar: {
+    width: '80%',
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 4,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
   },
 });
 

@@ -273,6 +273,100 @@ export class FileManagerService {
     };
   }
 
+  // saves an encrypted video file as chunks (1MB each) to the file system
+  static async saveEncryptedVideoChunked(
+    fileData: Uint8Array,
+    originalFileName: string,
+    mimeType: string,
+    key: Uint8Array,
+    folderPath: string[] = [],
+    tags: string[] = []
+  ): Promise<EncryptedFile> {
+    const start = Date.now();
+    this.checkKey(key, 'saveEncryptedVideoChunked');
+    
+    // Generate UUID for this video
+    const uuid = EncryptionUtils.generateUUID();
+    console.log('[FileManagerService] saveEncryptedVideoChunked: START', { uuid, originalFileName, fileSize: fileData.length });
+
+    // Create metadata with additional video information
+    const metadata: FileMetadata = {
+      name: originalFileName,
+      type: mimeType,
+      size: fileData.length,
+      folderPath,
+      tags,
+      uuid,
+      encryptedAt: new Date().toISOString(),
+      version: '2.0' // Version 2.0 indicates chunked format
+    };
+
+    // Add video-specific metadata
+    const chunkSize = 1024 * 1024; // 1 MB
+    const totalChunks = Math.ceil(fileData.length / chunkSize);
+    const videoMetadata = {
+      ...metadata,
+      isChunked: true,
+      chunkSize,
+      totalChunks,
+      originalSize: fileData.length
+    };
+
+    console.log('[FileManagerService] Video chunking info:', { 
+      totalSize: fileData.length, 
+      chunkSize, 
+      totalChunks 
+    });
+
+    // Encrypt and save each chunk as individual files
+    for (let i = 0; i < totalChunks; i++) {
+      const chunkStart = i * chunkSize;
+      const chunkEnd = Math.min(chunkStart + chunkSize, fileData.length);
+      const chunkData = fileData.slice(chunkStart, chunkEnd);
+      
+      console.log(`[FileManagerService] Processing chunk ${i + 1}/${totalChunks}, size: ${chunkData.length} bytes`);
+      
+      // Encrypt the chunk
+      const encryptedChunk = await EncryptionUtils.encryptData(chunkData, key);
+      
+      // Save chunk as individual file
+      const chunkFileName = `${uuid}.${i}.chunk.enc`;
+      const chunkBase64 = uint8ArrayToBase64(encryptedChunk);
+      await FileSystem.writeFile(chunkFileName, chunkBase64, 'base64');
+      
+      console.log(`[FileManagerService] Saved chunk ${i + 1}/${totalChunks}: ${chunkFileName}`);
+    }
+
+    // Encrypt metadata
+    const metadataString = JSON.stringify(videoMetadata);
+    const metadataBuffer = new TextEncoder().encode(metadataString);
+    const encryptedMetadata = await EncryptionUtils.encryptData(metadataBuffer, key);
+
+    // Write encrypted metadata as base64
+    const metadataPath = this.getFilePath(uuid, 'metadata');
+    const metadataBase64 = uint8ArrayToBase64(encryptedMetadata);
+    await FileSystem.writeFile(`${uuid}.metadata.enc`, metadataBase64, 'base64');
+
+    const end = Date.now();
+    console.log('[FileManagerService] saveEncryptedVideoChunked: END', { 
+      uuid, 
+      totalChunks, 
+      metadataPath, 
+      chunkFilePattern: `${uuid}.*.chunk.enc`,
+      durationMs: end - start, 
+      timestamp: end 
+    });
+
+    return {
+      uuid,
+      metadata: videoMetadata,
+      filePath: `${uuid}.chunks`, // Indicate this is a chunked video (logical reference)
+      metadataPath,
+      previewPath: undefined, // No preview for chunked videos
+      isEncrypted: true
+    };
+  }
+
   // loads an encrypted file from the file system
   static async loadEncryptedFile(
     uuid: string, 
@@ -330,6 +424,158 @@ export class FileManagerService {
     const end = Date.now();
     console.log('[FileManagerService] loadEncryptedFile: END', { uuid, filePath, metadataPath, durationMs: end - start, timestamp: end });
     return result;
+  }
+
+  // loads an encrypted chunked video from the file system
+  static async loadEncryptedVideoChunked(
+    uuid: string, 
+    key: Uint8Array, 
+    abortSignal?: AbortSignal, 
+    progressCallback?: (chunkIndex: number, totalChunks: number) => void,
+    targetTempPath?: string  // Optional path for temp file reconstruction
+  ): Promise<{
+    fileData?: Uint8Array;
+    tempFilePath?: string;
+    metadata: FileMetadata;
+    totalChunks: number;
+  }> {
+    const start = Date.now();
+    this.checkKey(key, 'loadEncryptedVideoChunked');
+    
+    console.log('[FileManagerService] loadEncryptedVideoChunked: START', { uuid });
+
+    // First, load metadata to get chunk information
+    const metadata = await this.loadFileMetadata(uuid, key);
+    const chunkedMetadata = metadata as any;
+    
+    if (!chunkedMetadata.isChunked || !chunkedMetadata.totalChunks) {
+      throw new Error('File is not a chunked video or metadata is invalid');
+    }
+
+    const totalChunks = chunkedMetadata.totalChunks;
+    const chunkSize = chunkedMetadata.chunkSize || (1024 * 1024);
+    
+    console.log('[FileManagerService] Chunked video info:', { 
+      totalChunks, 
+      chunkSize, 
+      originalSize: chunkedMetadata.originalSize 
+    });
+
+    // Check if we should reconstruct to a temp file or return data
+    if (targetTempPath) {
+      // Reconstruct chunks directly to temp file for streaming
+      console.log('[FileManagerService] Reconstructing video to temp file:', targetTempPath);
+      
+      const chunks: Uint8Array[] = [];
+      
+      for (let i = 0; i < totalChunks; i++) {
+        if (abortSignal?.aborted) {
+          throw new Error('Operation cancelled');
+        }
+        
+        console.log(`[FileManagerService] Loading chunk ${i + 1}/${totalChunks}`);
+        
+        const chunkFileName = `${uuid}.${i}.chunk.enc`;
+        const chunkBase64 = await FileSystem.readFile(chunkFileName, 'base64');
+        const encryptedChunk = base64ToUint8Array(chunkBase64);
+        
+        // Decrypt chunk
+        const decryptedChunkBuffer = await EncryptionUtils.decryptData(encryptedChunk, key, abortSignal);
+        const decryptedChunk = new Uint8Array(decryptedChunkBuffer);
+        
+        chunks.push(decryptedChunk);
+        
+        // Call progress callback
+        if (progressCallback) {
+          progressCallback(i + 1, totalChunks);
+        }
+        
+        console.log(`[FileManagerService] Decrypted chunk ${i + 1}/${totalChunks}, size: ${decryptedChunk.length} bytes`);
+      }
+      
+      // Combine all chunks
+      const totalSize = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+      const combinedData = new Uint8Array(totalSize);
+      let offset = 0;
+      
+      for (const chunk of chunks) {
+        combinedData.set(chunk, offset);
+        offset += chunk.length;
+      }
+      
+      // Create temp file
+      const tempPath = await this.createTempFile(combinedData, metadata.name);
+      
+      const end = Date.now();
+      console.log('[FileManagerService] loadEncryptedVideoChunked: END (temp file)', { 
+        uuid, 
+        tempPath, 
+        totalChunks, 
+        durationMs: end - start, 
+        timestamp: end 
+      });
+      
+      return {
+        tempFilePath: tempPath,
+        metadata,
+        totalChunks
+      };
+    } else {
+      // Return combined data in memory
+      console.log('[FileManagerService] Loading chunked video into memory');
+      
+      const chunks: Uint8Array[] = [];
+      
+      for (let i = 0; i < totalChunks; i++) {
+        if (abortSignal?.aborted) {
+          throw new Error('Operation cancelled');
+        }
+        
+        console.log(`[FileManagerService] Loading chunk ${i + 1}/${totalChunks}`);
+        
+        const chunkFileName = `${uuid}.${i}.chunk.enc`;
+        const chunkBase64 = await FileSystem.readFile(chunkFileName, 'base64');
+        const encryptedChunk = base64ToUint8Array(chunkBase64);
+        
+        // Decrypt chunk
+        const decryptedChunkBuffer = await EncryptionUtils.decryptData(encryptedChunk, key, abortSignal);
+        const decryptedChunk = new Uint8Array(decryptedChunkBuffer);
+        
+        chunks.push(decryptedChunk);
+        
+        // Call progress callback
+        if (progressCallback) {
+          progressCallback(i + 1, totalChunks);
+        }
+        
+        console.log(`[FileManagerService] Decrypted chunk ${i + 1}/${totalChunks}, size: ${decryptedChunk.length} bytes`);
+      }
+      
+      // Combine all chunks
+      const totalSize = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+      const combinedData = new Uint8Array(totalSize);
+      let offset = 0;
+      
+      for (const chunk of chunks) {
+        combinedData.set(chunk, offset);
+        offset += chunk.length;
+      }
+      
+      const end = Date.now();
+      console.log('[FileManagerService] loadEncryptedVideoChunked: END (in memory)', { 
+        uuid, 
+        totalChunks, 
+        totalSize, 
+        durationMs: end - start, 
+        timestamp: end 
+      });
+      
+      return {
+        fileData: combinedData,
+        metadata,
+        totalChunks
+      };
+    }
   }
 
   /**
@@ -440,6 +686,24 @@ export class FileManagerService {
       const filePath = this.getFilePath(uuid, 'file');
       const metadataPath = this.getFilePath(uuid, 'metadata');
       const previewPath = this.getFilePath(uuid, 'preview');
+      const chunksDirectoryName = `${uuid}.chunks.enc`;
+
+      // Try to read metadata to check if this is a chunked video
+      let isChunked = false;
+      try {
+        if ((Platform.OS as any) === 'web') {
+          const metadataBase64 = await FileSystem.readFile(`${uuid}.metadata.enc`, 'base64');
+          // For web, we can try to check if chunks exist by listing files
+          const files = await FileSystem.listFiles();
+          isChunked = files.some((file: any) => {
+            const fileName = typeof file === 'string' ? file : file.name;
+            return fileName.startsWith(`${uuid}.`) && fileName.includes('.chunk.enc');
+          });
+        }
+      } catch {
+        // If we can't read metadata, assume it's not chunked
+        isChunked = false;
+      }
 
       // Delete main file
       if ((Platform.OS as any) === 'web') {
@@ -447,6 +711,31 @@ export class FileManagerService {
         try { await FileSystem.unlink(`${uuid}.enc`); } catch {}
         try { await FileSystem.unlink(`${uuid}.metadata.enc`); } catch {}
         try { await FileSystem.unlink(`${uuid}.preview.enc`); } catch {}
+        
+        // If this is a chunked video, delete the chunk files
+        if (isChunked) {
+          try {
+            console.log(`[FileManagerService] Deleting chunked video files for UUID: ${uuid}`);
+            const files = await FileSystem.listFiles();
+            const chunkFiles = files.filter((file: any) => {
+              const fileName = typeof file === 'string' ? file : file.name;
+              return fileName.startsWith(`${uuid}.`) && fileName.includes('.chunk.enc');
+            });
+            
+            for (const chunkFile of chunkFiles) {
+              try {
+                const fileName = typeof chunkFile === 'string' ? chunkFile : chunkFile.name;
+                await FileSystem.unlink(fileName);
+                console.log(`[FileManagerService] Deleted chunk: ${fileName}`);
+              } catch (chunkError) {
+                console.warn(`[FileManagerService] Failed to delete chunk ${chunkFile}:`, chunkError);
+              }
+            }
+          } catch (chunksError) {
+            console.warn(`[FileManagerService] Failed to delete chunk files:`, chunksError);
+          }
+        }
+        
         return true;
       } else {
         if (await FileSystem.exists(filePath)) {
@@ -458,6 +747,32 @@ export class FileManagerService {
         if (await FileSystem.exists(previewPath)) {
           await FileSystem.unlink(previewPath);
         }
+        
+        // For native, check if chunk files exist and delete them
+        if (isChunked) {
+          try {
+            console.log(`[FileManagerService] Deleting chunked video files for UUID: ${uuid}`);
+            const files = await FileSystem.readDir();
+            const chunkFiles = files.filter((file: any) => {
+              const fileName = file.name || file;
+              return fileName.startsWith(`${uuid}.`) && fileName.includes('.chunk.enc');
+            });
+            
+            for (const chunkFile of chunkFiles) {
+              try {
+                const fileName = chunkFile.name || chunkFile;
+                await FileSystem.unlink(fileName);
+                console.log(`[FileManagerService] Deleted chunk: ${fileName}`);
+              } catch (chunkError) {
+                const fileName = chunkFile.name || chunkFile;
+                console.warn(`[FileManagerService] Failed to delete chunk ${fileName}:`, chunkError);
+              }
+            }
+          } catch (chunksError) {
+            console.warn(`[FileManagerService] Failed to delete chunk files:`, chunksError);
+          }
+        }
+        
         return true;
       }
     } catch (error) {
