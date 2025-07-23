@@ -159,10 +159,14 @@ const FileViewer: React.FC<FileViewerProps> = ({
   const [isLoadingFile, setIsLoadingFile] = React.useState(false);
   const [fileLoadError, setFileLoadError] = React.useState<string | null>(null);
   
-  // Load file if fileData is empty (for large videos)
+  // Load file if fileData is empty (for large files that need special handling)
   React.useEffect(() => {
-    // Don't load file data for videos if we're going to pass UUID to VideoFile for decryption
-    const isVideo = viewerMetadata.type.startsWith('video/');
+    // For videos and HLS files, we always want to let VideoFile handle the decryption
+    const isVideo = viewerMetadata.type.startsWith('video/') || 
+                   viewerMetadata.type.includes('mpegurl') || 
+                   viewerMetadata.name.toLowerCase().endsWith('.m3u8') ||
+                   viewerMetadata.name.toLowerCase().endsWith('.ts');
+                   
     const shouldLoadFile = fileData.length === 0 && !isPreviewData && viewerMetadata.uuid && !isVideo;
     
     if (shouldLoadFile) {
@@ -171,7 +175,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
     } else {
       setActualFileData(fileData);
     }
-  }, [fileData, isPreviewData, viewerMetadata.uuid, viewerMetadata.type]);
+  }, [fileData, isPreviewData, viewerMetadata.uuid, viewerMetadata.type, viewerMetadata.name]);
   
   const loadFileData = async () => {
     if (isLoadingFile) return;
@@ -478,15 +482,31 @@ const FileViewer: React.FC<FileViewerProps> = ({
       rendered = <TextFile fileData={actualFileData} />;
     } else if (mimeType.startsWith('audio/')) {
       rendered = <AudioFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
-    } else if (mimeType.startsWith('video/')) {
-      console.log('[FileViewer] Using VideoFile for video:', metadata.name, 'Size:', formatFileSize(metadata.size));
-      // For videos, always pass UUID for decryption to avoid duplicate decryption in FileViewer
-      // VideoFile component will handle the decryption
-      if (actualFileData.length > 0) {
-        rendered = <VideoFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} onClose={onClose} />;
-      } else {
-        rendered = <VideoFile uuid={metadata.uuid} mimeType={mimeType} fileName={metadata.name} totalSize={metadata.size} onClose={onClose} />;
-      }
+    } else if (mimeType.startsWith('video/') || mimeType.includes('mpegurl') || 
+               metadata.name.toLowerCase().endsWith('.m3u8') || 
+               metadata.name.toLowerCase().endsWith('.ts')) {
+      console.log('[FileViewer] Using VideoFile for video/HLS:', metadata.name, 'Type:', mimeType, 'Size:', formatFileSize(metadata.size), 'Detection:', {
+        startsWithVideo: mimeType.startsWith('video/'),
+        includesMpegurl: mimeType.includes('mpegurl'),
+        endsWithM3u8: metadata.name.toLowerCase().endsWith('.m3u8'),
+        endsWithTs: metadata.name.toLowerCase().endsWith('.ts')
+      });
+      // Create EncryptedFile object for VideoFile component
+      const encryptedFile: any = {
+        uuid: metadata.uuid,
+        metadata: viewerMetadata,
+        filePath: `${metadata.uuid}.enc`,
+        metadataPath: `${metadata.uuid}.metadata.enc`,
+        isEncrypted: true
+      };
+      
+      rendered = <VideoFile 
+        file={encryptedFile} 
+        onError={(error) => {
+          console.error('[FileViewer] Video error:', error);
+          setFileLoadError(error);
+        }} 
+      />;
     } else if (mimeType === 'application/pdf') {
       rendered = <PDFFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
     } else {

@@ -352,6 +352,41 @@ const SettingsScreen = () => {
     );
   };
 
+  const handleCleanupDuplicateHLS = async () => {
+    showAlert(
+      'Clean Duplicate HLS Videos',
+      'This will remove duplicate HLS video files with the same name, keeping only the most recent version. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clean Duplicates',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              const result = await fileManagerService.cleanupDuplicateHLSVideos();
+              await refreshFileList();
+              
+              if (result.removedCount > 0) {
+                showAlert(
+                  'Cleanup Complete', 
+                  `Removed ${result.removedCount} duplicate video${result.removedCount === 1 ? '' : 's'}.\n\nKept videos:\n${result.keptVideos.join('\n')}`
+                );
+              } else {
+                showAlert('No Duplicates Found', 'No duplicate HLS videos were found.');
+              }
+            } catch (error) {
+              console.error('Error cleaning duplicate HLS videos:', error);
+              showAlert('Error', 'Failed to clean duplicate HLS videos: ' + (error instanceof Error ? error.message : String(error)));
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleClearCorrupted = async () => {
     showAlert(
       'Clear Corrupted Files',
@@ -467,6 +502,14 @@ const SettingsScreen = () => {
       >
         <WebCompatibleIcon name="warning" size={24} color={theme.chipText} />
         <Text style={getStyles(theme).deleteButtonText}>Clear Corrupted Files</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[getStyles(theme).deleteButton, deleting && getStyles(theme).deleteButtonDisabled, { marginTop: 12 }, getStyles(theme).clearCorruptedButton]}
+        onPress={handleCleanupDuplicateHLS}
+        disabled={deleting}
+      >
+        <WebCompatibleIcon name="video-library" size={24} color={theme.chipText} />
+        <Text style={getStyles(theme).deleteButtonText}>Clean Duplicate HLS Videos</Text>
       </TouchableOpacity>
       {deleting && <ActivityIndicator size="large" color={theme.error} style={{ marginTop: 16 }} />}
     </ScrollView>

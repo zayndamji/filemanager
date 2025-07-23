@@ -235,7 +235,9 @@ const FileListScreen = () => {
     const start = Date.now();
     
     // For all video files, skip loading here and let FileViewer handle it
-    const isVideo = file.metadata.type.startsWith('video/');
+    const isVideo = file.metadata.type.startsWith('video/') || 
+                   file.metadata.type.includes('mpegurl') ||  // HLS videos
+                   file.metadata.type.includes('x-mpegURL');
     
     if (isVideo) {
       console.log('[FileListScreen] Opening video file in viewer without pre-loading:', file.metadata.name);
