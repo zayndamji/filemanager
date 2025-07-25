@@ -427,6 +427,212 @@ export class FileManagerService {
   }
 
   // loads an encrypted chunked video from the file system
+  /**
+   * Loads encrypted video progressively - starts with initial chunks and continues loading in background
+   */
+  static async loadEncryptedVideoProgressive(
+    uuid: string, 
+    key: Uint8Array, 
+    abortSignal?: AbortSignal, 
+    progressCallback?: (chunkIndex: number, totalChunks: number) => void,
+    initialChunksCount: number = 8  // Load first 8MB worth of data initially
+  ): Promise<{
+    tempFilePath: string;
+    metadata: FileMetadata;
+    totalChunks: number;
+    backgroundLoadingPromise: Promise<void>;
+  }> {
+    const start = Date.now();
+    this.checkKey(key, 'loadEncryptedVideoProgressive');
+    
+    console.log('[FileManagerService] loadEncryptedVideoProgressive: START', { uuid, initialChunksCount });
+
+    // First, load metadata to get chunk information
+    const metadata = await this.loadFileMetadata(uuid, key);
+    const chunkedMetadata = metadata as any;
+    
+    if (!chunkedMetadata.isChunked || !chunkedMetadata.totalChunks) {
+      throw new Error('File is not a chunked video or metadata is invalid');
+    }
+
+    const totalChunks = chunkedMetadata.totalChunks;
+    const chunkSize = chunkedMetadata.chunkSize || (1024 * 1024);
+    const initialCount = Math.min(initialChunksCount, totalChunks);
+    
+    console.log('[FileManagerService] Progressive video info:', { 
+      totalChunks, 
+      chunkSize, 
+      originalSize: chunkedMetadata.originalSize,
+      initialChunksCount: initialCount
+    });
+
+    // Load initial chunks in parallel batches
+    console.log('[FileManagerService] Loading initial chunks for progressive playback');
+    const BATCH_SIZE = 2; // Reduced batch size for better performance on mobile
+    const initialChunks: Uint8Array[] = new Array(initialCount);
+    
+    for (let batchStart = 0; batchStart < initialCount; batchStart += BATCH_SIZE) {
+      if (abortSignal?.aborted) {
+        throw new Error('Operation cancelled');
+      }
+      
+      const batchEnd = Math.min(batchStart + BATCH_SIZE, initialCount);
+      console.log(`[FileManagerService] Loading initial batch (chunks ${batchStart + 1}-${batchEnd})`);
+      
+      const batchPromises = [];
+      for (let i = batchStart; i < batchEnd; i++) {
+        const chunkPromise = (async (chunkIndex: number) => {
+          try {
+            const chunkFileName = `${uuid}.${chunkIndex}.chunk.enc`;
+            const chunkBase64 = await FileSystem.readFile(chunkFileName, 'base64');
+            const encryptedChunk = base64ToUint8Array(chunkBase64);
+            
+            const decryptedChunkBuffer = await EncryptionUtils.decryptData(encryptedChunk, key, abortSignal);
+            const decryptedChunk = new Uint8Array(decryptedChunkBuffer);
+            
+            initialChunks[chunkIndex] = decryptedChunk;
+            console.log(`[FileManagerService] Initial chunk ${chunkIndex + 1} loaded (${decryptedChunk.length} bytes)`);
+            return chunkIndex;
+          } catch (error) {
+            console.error(`[FileManagerService] Failed to load initial chunk ${chunkIndex + 1}:`, error);
+            throw error;
+          }
+        })(i);
+        
+        batchPromises.push(chunkPromise);
+      }
+      
+      await Promise.all(batchPromises);
+      
+      if (progressCallback) {
+        progressCallback(batchEnd, totalChunks);
+      }
+    }
+
+    // Create initial temp file with available chunks
+    const initialTotalSize = initialChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const initialData = new Uint8Array(initialTotalSize);
+    let offset = 0;
+    
+    for (const chunk of initialChunks) {
+      initialData.set(chunk, offset);
+      offset += chunk.length;
+    }
+    
+    const tempPath = await this.createTempFile(initialData, metadata.name);
+    console.log('[FileManagerService] Created initial temp file for progressive loading:', tempPath);
+
+    // Background loading for remaining chunks
+    const backgroundLoadingPromise = (async () => {
+      if (initialCount >= totalChunks) {
+        console.log('[FileManagerService] All chunks already loaded in initial batch');
+        return;
+      }
+
+      console.log('[FileManagerService] Starting background loading for remaining chunks');
+      const allChunks: Uint8Array[] = new Array(totalChunks);
+      
+      // Copy initial chunks
+      for (let i = 0; i < initialCount; i++) {
+        allChunks[i] = initialChunks[i];
+      }
+
+      // Load remaining chunks and update the temp file progressively
+      let lastUpdateChunk = initialCount;
+      const UPDATE_INTERVAL = 2; // Update temp file every 2 chunks for more frequent updates
+      
+      for (let batchStart = initialCount; batchStart < totalChunks; batchStart += BATCH_SIZE) {
+        if (abortSignal?.aborted) {
+          console.log('[FileManagerService] Background loading cancelled');
+          return;
+        }
+        
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, totalChunks);
+        console.log(`[FileManagerService] Background loading batch (chunks ${batchStart + 1}-${batchEnd})`);
+        
+        const batchPromises = [];
+        for (let i = batchStart; i < batchEnd; i++) {
+          const chunkPromise = (async (chunkIndex: number) => {
+            try {
+              const chunkFileName = `${uuid}.${chunkIndex}.chunk.enc`;
+              const chunkBase64 = await FileSystem.readFile(chunkFileName, 'base64');
+              const encryptedChunk = base64ToUint8Array(chunkBase64);
+              
+              const decryptedChunkBuffer = await EncryptionUtils.decryptData(encryptedChunk, key, abortSignal);
+              const decryptedChunk = new Uint8Array(decryptedChunkBuffer);
+              
+              allChunks[chunkIndex] = decryptedChunk;
+              console.log(`[FileManagerService] Background chunk ${chunkIndex + 1} loaded`);
+              return chunkIndex;
+            } catch (error) {
+              console.error(`[FileManagerService] Failed to load background chunk ${chunkIndex + 1}:`, error);
+              throw error;
+            }
+          })(i);
+          
+          batchPromises.push(chunkPromise);
+        }
+        
+        try {
+          await Promise.all(batchPromises);
+          
+          // Update the temp file periodically with newly loaded chunks
+          if (batchEnd - lastUpdateChunk >= UPDATE_INTERVAL || batchEnd === totalChunks) {
+            try {
+              const currentTotalSize = allChunks.slice(0, batchEnd).reduce((sum, chunk) => sum + (chunk?.length || 0), 0);
+              const currentData = new Uint8Array(currentTotalSize);
+              let currentOffset = 0;
+              
+              for (let i = 0; i < batchEnd; i++) {
+                if (allChunks[i]) {
+                  currentData.set(allChunks[i], currentOffset);
+                  currentOffset += allChunks[i].length;
+                }
+              }
+              
+              // Update the same temp file that the video player is using
+              if (Platform.OS !== 'web' && RNFS) {
+                await RNFS.writeFile(tempPath, uint8ArrayToBase64(currentData), 'base64');
+                console.log(`[FileManagerService] Updated temp file with ${batchEnd} chunks (${currentTotalSize} bytes)`);
+              }
+              
+              lastUpdateChunk = batchEnd;
+            } catch (updateError) {
+              console.warn('[FileManagerService] Failed to update temp file:', updateError);
+              // Continue loading even if update fails
+            }
+          }
+          
+          if (progressCallback) {
+            progressCallback(batchEnd, totalChunks);
+          }
+        } catch (error) {
+          console.error('[FileManagerService] Background batch failed:', error);
+          // Continue with next batch instead of failing completely
+        }
+      }
+
+      console.log('[FileManagerService] Background loading complete, temp file fully updated');
+    })();
+
+    const end = Date.now();
+    console.log('[FileManagerService] loadEncryptedVideoProgressive: Initial load complete', { 
+      uuid, 
+      tempPath, 
+      initialChunks: initialCount,
+      totalChunks, 
+      durationMs: end - start, 
+      timestamp: end 
+    });
+
+    return {
+      tempFilePath: tempPath,
+      metadata,
+      totalChunks,
+      backgroundLoadingPromise
+    };
+  }
+
   static async loadEncryptedVideoChunked(
     uuid: string, 
     key: Uint8Array, 
@@ -466,31 +672,53 @@ export class FileManagerService {
       // Reconstruct chunks directly to temp file for streaming
       console.log('[FileManagerService] Reconstructing video to temp file:', targetTempPath);
       
-      const chunks: Uint8Array[] = [];
+      // For very large files, use batch processing with memory management
+      const BATCH_SIZE = 1; // Sequential processing for temp file mode to prevent memory issues
+      const chunks: Uint8Array[] = new Array(totalChunks);
       
-      for (let i = 0; i < totalChunks; i++) {
+      for (let batchStart = 0; batchStart < totalChunks; batchStart += BATCH_SIZE) {
         if (abortSignal?.aborted) {
           throw new Error('Operation cancelled');
         }
         
-        console.log(`[FileManagerService] Loading chunk ${i + 1}/${totalChunks}`);
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, totalChunks);
+        console.log(`[FileManagerService] Processing temp file batch ${Math.floor(batchStart / BATCH_SIZE) + 1}/${Math.ceil(totalChunks / BATCH_SIZE)} (chunks ${batchStart + 1}-${batchEnd})`);
         
-        const chunkFileName = `${uuid}.${i}.chunk.enc`;
-        const chunkBase64 = await FileSystem.readFile(chunkFileName, 'base64');
-        const encryptedChunk = base64ToUint8Array(chunkBase64);
+        // Create promises for parallel processing
+        const batchPromises = [];
+        for (let i = batchStart; i < batchEnd; i++) {
+          const chunkPromise = (async (chunkIndex: number) => {
+            if (abortSignal?.aborted) {
+              throw new Error('Operation cancelled');
+            }
+            
+            const chunkFileName = `${uuid}.${chunkIndex}.chunk.enc`;
+            const chunkBase64 = await FileSystem.readFile(chunkFileName, 'base64');
+            const encryptedChunk = base64ToUint8Array(chunkBase64);
+            
+            // Decrypt chunk
+            const decryptedChunkBuffer = await EncryptionUtils.decryptData(encryptedChunk, key, abortSignal);
+            const decryptedChunk = new Uint8Array(decryptedChunkBuffer);
+            
+            chunks[chunkIndex] = decryptedChunk;
+            
+            // Log progress every 10 chunks to reduce log spam
+            if ((chunkIndex + 1) % 10 === 0 || chunkIndex === totalChunks - 1) {
+              console.log(`[FileManagerService] Decrypted chunk ${chunkIndex + 1}/${totalChunks}, size: ${decryptedChunk.length} bytes`);
+            }
+            return chunkIndex;
+          })(i);
+          
+          batchPromises.push(chunkPromise);
+        }
         
-        // Decrypt chunk
-        const decryptedChunkBuffer = await EncryptionUtils.decryptData(encryptedChunk, key, abortSignal);
-        const decryptedChunk = new Uint8Array(decryptedChunkBuffer);
-        
-        chunks.push(decryptedChunk);
+        // Wait for all chunks in this batch to complete
+        await Promise.all(batchPromises);
         
         // Call progress callback
         if (progressCallback) {
-          progressCallback(i + 1, totalChunks);
+          progressCallback(batchEnd, totalChunks);
         }
-        
-        console.log(`[FileManagerService] Decrypted chunk ${i + 1}/${totalChunks}, size: ${decryptedChunk.length} bytes`);
       }
       
       // Combine all chunks
@@ -524,31 +752,52 @@ export class FileManagerService {
       // Return combined data in memory
       console.log('[FileManagerService] Loading chunked video into memory');
       
-      const chunks: Uint8Array[] = [];
+      // Process chunks in parallel batches for better performance
+      const BATCH_SIZE = 2; // Reduced batch size for mobile performance
+      const chunks: Uint8Array[] = new Array(totalChunks);
       
-      for (let i = 0; i < totalChunks; i++) {
+      for (let batchStart = 0; batchStart < totalChunks; batchStart += BATCH_SIZE) {
         if (abortSignal?.aborted) {
           throw new Error('Operation cancelled');
         }
         
-        console.log(`[FileManagerService] Loading chunk ${i + 1}/${totalChunks}`);
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, totalChunks);
+        console.log(`[FileManagerService] Processing batch ${Math.floor(batchStart / BATCH_SIZE) + 1}/${Math.ceil(totalChunks / BATCH_SIZE)} (chunks ${batchStart + 1}-${batchEnd})`);
         
-        const chunkFileName = `${uuid}.${i}.chunk.enc`;
-        const chunkBase64 = await FileSystem.readFile(chunkFileName, 'base64');
-        const encryptedChunk = base64ToUint8Array(chunkBase64);
-        
-        // Decrypt chunk
-        const decryptedChunkBuffer = await EncryptionUtils.decryptData(encryptedChunk, key, abortSignal);
-        const decryptedChunk = new Uint8Array(decryptedChunkBuffer);
-        
-        chunks.push(decryptedChunk);
-        
-        // Call progress callback
-        if (progressCallback) {
-          progressCallback(i + 1, totalChunks);
+        // Create promises for parallel processing
+        const batchPromises = [];
+        for (let i = batchStart; i < batchEnd; i++) {
+          const chunkPromise = (async (chunkIndex: number) => {
+            if (abortSignal?.aborted) {
+              throw new Error('Operation cancelled');
+            }
+            
+            const chunkFileName = `${uuid}.${chunkIndex}.chunk.enc`;
+            const chunkBase64 = await FileSystem.readFile(chunkFileName, 'base64');
+            const encryptedChunk = base64ToUint8Array(chunkBase64);
+            
+            // Decrypt chunk
+            const decryptedChunkBuffer = await EncryptionUtils.decryptData(encryptedChunk, key, abortSignal);
+            const decryptedChunk = new Uint8Array(decryptedChunkBuffer);
+            
+            chunks[chunkIndex] = decryptedChunk;
+            
+            console.log(`[FileManagerService] Decrypted chunk ${chunkIndex + 1}/${totalChunks}, size: ${decryptedChunk.length} bytes`);
+            return chunkIndex;
+          })(i);
+          
+          batchPromises.push(chunkPromise);
         }
         
-        console.log(`[FileManagerService] Decrypted chunk ${i + 1}/${totalChunks}, size: ${decryptedChunk.length} bytes`);
+        // Wait for all chunks in this batch to complete
+        const completedChunks = await Promise.all(batchPromises);
+        
+        // Call progress callback for completed chunks
+        if (progressCallback) {
+          progressCallback(batchEnd, totalChunks);
+        }
+        
+        console.log(`[FileManagerService] Completed batch with chunks: ${completedChunks.map(i => i + 1).join(', ')}`);
       }
       
       // Combine all chunks

@@ -56,6 +56,16 @@ export const useFileManagerService = () => {
       return FileManagerService.loadEncryptedVideoChunked(uuid, key, abortSignal, progressCallback, targetTempPath);
     },
 
+    loadEncryptedVideoProgressive: async (
+      uuid: string,
+      abortSignal?: AbortSignal,
+      progressCallback?: (chunkIndex: number, totalChunks: number) => void,
+      initialChunksCount?: number
+    ): Promise<{ tempFilePath: string; metadata: FileMetadata; totalChunks: number; backgroundLoadingPromise: Promise<void> }> => {
+      const key = checkDerivedKey();
+      return FileManagerService.loadEncryptedVideoProgressive(uuid, key, abortSignal, progressCallback, initialChunksCount);
+    },
+
     loadFileMetadata: async (uuid: string): Promise<FileMetadata> => {
       const key = checkDerivedKey();
       return FileManagerService.loadFileMetadata(uuid, key);
