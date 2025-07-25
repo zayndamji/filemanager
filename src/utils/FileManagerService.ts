@@ -90,45 +90,6 @@ export class FileManagerService {
   }
 
   /**
-   * Creates a temporary directory (cross-platform)
-   */
-  static async createTempDirectory(): Promise<string> {
-    const tempDirName = `temp_dir_${Date.now()}_${Math.random().toString(36).substring(2)}`;
-    
-    if ((Platform.OS as any) === 'web') {
-      // For web, we'll just return a logical directory name
-      // (actual file system operations will be handled differently)
-      return tempDirName;
-    } else if (RNFS) {
-      // For native platforms, create actual directory
-      const tempDirPath = `${RNFS.TemporaryDirectoryPath}/${tempDirName}`;
-      await RNFS.mkdir(tempDirPath);
-      console.log('[FileManagerService] Created temp directory:', tempDirPath);
-      return tempDirPath;
-    }
-    
-    throw new Error('File system not available');
-  }
-
-  /**
-   * Deletes a temporary directory (cross-platform)
-   */
-  static async deleteTempDirectory(tempDirPath: string): Promise<void> {
-    try {
-      if ((Platform.OS as any) === 'web') {
-        // For web, this is mostly a no-op since we don't create real directories
-        console.log('[FileManagerService] Cleaned up temp directory (web):', tempDirPath);
-      } else if (RNFS) {
-        // For native platforms, remove the actual directory
-        await RNFS.unlink(tempDirPath);
-        console.log('[FileManagerService] Deleted temp directory:', tempDirPath);
-      }
-    } catch (error) {
-      console.warn('[FileManagerService] Failed to delete temp directory:', tempDirPath, error);
-    }
-  }
-
-  /**
    * Cleanup all temporary files (called on app startup and shutdown)
    */
   static async cleanupAllTempFiles(): Promise<void> {
@@ -406,144 +367,6 @@ export class FileManagerService {
     };
   }
 
-  /**
-   * Saves an HLS video with playlist and segments as separate encrypted files
-   */
-  static async saveEncryptedHLSVideo(
-    playlistData: Uint8Array,
-    playlistFileName: string,
-    playlistMimeType: string,
-    segmentFiles: Array<{ name: string; type: string; size?: number; uri?: string; webFile?: File }>,
-    key: Uint8Array,
-    folderPath: string[] = [],
-    tags: string[] = []
-  ): Promise<{
-    uuid: string;
-    metadata: FileMetadata;
-    filePath: string;
-    metadataPath: string;
-    isEncrypted: boolean;
-  }> {
-    const start = Date.now();
-    this.checkKey(key, 'saveEncryptedHLSVideo');
-
-    const uuid = EncryptionUtils.generateUUID();
-    console.log('[FileManagerService] saveEncryptedHLSVideo: START', { 
-      uuid, 
-      playlistFileName, 
-      segmentCount: segmentFiles.length,
-      playlistSize: playlistData.length 
-    });
-
-    // Read all segment file data
-    const segmentDataArray: Uint8Array[] = [];
-    for (let i = 0; i < segmentFiles.length; i++) {
-      const segment = segmentFiles[i];
-      let segmentData: Uint8Array;
-
-      if (segment.webFile) {
-        // Web File object
-        const arrayBuffer = await segment.webFile.arrayBuffer();
-        segmentData = new Uint8Array(arrayBuffer);
-      } else if (segment.uri && Platform.OS !== 'web' && RNFS) {
-        // Native file URI
-        const segmentBase64 = await RNFS.readFile(segment.uri, 'base64');
-        segmentData = base64ToUint8Array(segmentBase64);
-      } else {
-        console.error(`[FileManagerService] No valid data source for segment: ${segment.name}`);
-        throw new Error(`Cannot read segment file: ${segment.name}`);
-      }
-
-      segmentDataArray.push(segmentData);
-      console.log(`[FileManagerService] Read segment ${i}: ${segment.name}, size: ${segmentData.length} bytes`);
-    }
-
-    // Encrypt and save playlist file
-    console.log('[FileManagerService] Encrypting HLS playlist');
-    const encryptedPlaylist = await EncryptionUtils.encryptData(playlistData, key);
-    const playlistPath = `${uuid}.m3u8.enc`;
-    
-    if ((Platform.OS as any) === 'web') {
-      const playlistBase64 = uint8ArrayToBase64(encryptedPlaylist);
-      await FileSystem.writeFile(playlistPath, playlistBase64, 'base64');
-    } else if (RNFS) {
-      const playlistBase64 = uint8ArrayToBase64(encryptedPlaylist);
-      await RNFS.writeFile(`${RNFS.DocumentDirectoryPath}/${playlistPath}`, playlistBase64, 'base64');
-    }
-
-    // Encrypt and save segment files
-    console.log('[FileManagerService] Encrypting HLS segments');
-    for (let i = 0; i < segmentDataArray.length; i++) {
-      const segmentData = segmentDataArray[i];
-      const encryptedSegment = await EncryptionUtils.encryptData(segmentData, key);
-      const segmentPath = `${uuid}.ts.${i}.enc`;
-      
-      if ((Platform.OS as any) === 'web') {
-        const segmentBase64 = uint8ArrayToBase64(encryptedSegment);
-        await FileSystem.writeFile(segmentPath, segmentBase64, 'base64');
-      } else if (RNFS) {
-        const segmentBase64 = uint8ArrayToBase64(encryptedSegment);
-        await RNFS.writeFile(`${RNFS.DocumentDirectoryPath}/${segmentPath}`, segmentBase64, 'base64');
-      }
-      
-      console.log(`[FileManagerService] Saved encrypted segment ${i}: ${segmentPath}`);
-    }
-
-    // Create metadata for HLS video
-    const totalSize = playlistData.length + segmentDataArray.reduce((sum, data) => sum + data.length, 0);
-    const hlsMetadata: FileMetadata & { 
-      isHLS: boolean; 
-      segmentCount: number; 
-      segmentFiles: string[];
-      version: string;
-    } = {
-      name: playlistFileName,
-      type: playlistMimeType,
-      size: totalSize,
-      folderPath,
-      tags,
-      uuid,
-      encryptedAt: new Date().toISOString(),
-      version: '3.0', // HLS version
-      isHLS: true,
-      segmentCount: segmentFiles.length,
-      segmentFiles: segmentFiles.map(f => f.name)
-    };
-
-    // Encrypt and save metadata
-    console.log('[FileManagerService] Encrypting HLS metadata');
-    const metadataJson = JSON.stringify(hlsMetadata);
-    const metadataBytes = new TextEncoder().encode(metadataJson);
-    const encryptedMetadata = await EncryptionUtils.encryptData(metadataBytes, key);
-    const metadataPath = `${uuid}.metadata.enc`;
-    
-    if ((Platform.OS as any) === 'web') {
-      const metadataBase64 = uint8ArrayToBase64(encryptedMetadata);
-      await FileSystem.writeFile(metadataPath, metadataBase64, 'base64');
-    } else if (RNFS) {
-      const metadataBase64 = uint8ArrayToBase64(encryptedMetadata);
-      await RNFS.writeFile(`${RNFS.DocumentDirectoryPath}/${metadataPath}`, metadataBase64, 'base64');
-    }
-
-    const end = Date.now();
-    console.log('[FileManagerService] saveEncryptedHLSVideo: END', { 
-      uuid, 
-      segmentCount: segmentFiles.length,
-      totalSize,
-      metadataPath,
-      durationMs: end - start, 
-      timestamp: end 
-    });
-
-    return {
-      uuid,
-      metadata: hlsMetadata,
-      filePath: `${uuid}.hls`, // Indicate this is an HLS video
-      metadataPath,
-      isEncrypted: true
-    };
-  }
-
   // loads an encrypted file from the file system
   static async loadEncryptedFile(
     uuid: string, 
@@ -601,43 +424,6 @@ export class FileManagerService {
     const end = Date.now();
     console.log('[FileManagerService] loadEncryptedFile: END', { uuid, filePath, metadataPath, durationMs: end - start, timestamp: end });
     return result;
-  }
-
-  // Loads a single encrypted chunk for progressive streaming
-  static async loadEncryptedChunk(
-    uuid: string,
-    chunkIndex: number,
-    key: Uint8Array,
-    abortSignal?: AbortSignal
-  ): Promise<Uint8Array | null> {
-    try {
-      this.checkKey(key, 'loadEncryptedChunk');
-      
-      if (abortSignal?.aborted) {
-        throw new Error('Operation cancelled');
-      }
-      
-      console.log(`[FileManagerService] Loading chunk ${chunkIndex} for uuid: ${uuid}`);
-      
-      const chunkFileName = `${uuid}.${chunkIndex}.chunk.enc`;
-      const chunkBase64 = await FileSystem.readFile(chunkFileName, 'base64');
-      const encryptedChunk = base64ToUint8Array(chunkBase64);
-      
-      // Decrypt chunk
-      const decryptedChunkBuffer = await EncryptionUtils.decryptData(encryptedChunk, key, abortSignal);
-      const decryptedChunk = new Uint8Array(decryptedChunkBuffer);
-      
-      console.log(`[FileManagerService] Successfully loaded chunk ${chunkIndex}, size: ${decryptedChunk.length} bytes`);
-      return decryptedChunk;
-      
-    } catch (error) {
-      if (abortSignal?.aborted) {
-        console.log(`[FileManagerService] Chunk ${chunkIndex} loading was cancelled`);
-        return null;
-      }
-      console.error(`[FileManagerService] Error loading chunk ${chunkIndex}:`, error);
-      return null;
-    }
   }
 
   // loads an encrypted chunked video from the file system
@@ -793,127 +579,15 @@ export class FileManagerService {
   }
 
   /**
-   * Loads an HLS video playlist and provides on-demand segment decryption
-   */
-  static async loadEncryptedHLSVideo(
-    uuid: string,
-    key: Uint8Array,
-    abortSignal?: AbortSignal
-  ): Promise<{
-    playlistData: Uint8Array;
-    metadata: FileMetadata & { isHLS: boolean; segmentCount: number; segmentFiles: string[] };
-    getSegment: (segmentIndex: number) => Promise<Uint8Array>;
-  }> {
-    const start = Date.now();
-    this.checkKey(key, 'loadEncryptedHLSVideo');
-
-    console.log('[FileManagerService] loadEncryptedHLSVideo: START', { uuid });
-
-    // Load metadata first to verify this is an HLS video
-    const metadata = await this.loadFileMetadata(uuid, key) as FileMetadata & { 
-      isHLS: boolean; 
-      segmentCount: number; 
-      segmentFiles: string[];
-      version: string;
-    };
-
-    if (!metadata.isHLS || metadata.version !== '3.0') {
-      throw new Error('This is not a valid HLS video file');
-    }
-
-    console.log('[FileManagerService] HLS metadata loaded:', { 
-      segmentCount: metadata.segmentCount,
-      version: metadata.version 
-    });
-
-    // Check cancellation
-    if (abortSignal?.aborted) {
-      throw new Error('Operation cancelled');
-    }
-
-    // Load and decrypt the playlist (.m3u8) file
-    console.log('[FileManagerService] Loading HLS playlist');
-    const playlistPath = `${uuid}.m3u8.enc`;
-    let encryptedPlaylist: Uint8Array;
-
-    if ((Platform.OS as any) === 'web') {
-      const playlistBase64 = await FileSystem.readFile(playlistPath, 'base64');
-      encryptedPlaylist = base64ToUint8Array(playlistBase64);
-    } else if (RNFS) {
-      const playlistBase64 = await RNFS.readFile(`${RNFS.DocumentDirectoryPath}/${playlistPath}`, 'base64');
-      encryptedPlaylist = base64ToUint8Array(playlistBase64);
-    } else {
-      throw new Error('File system not available');
-    }
-
-    if (abortSignal?.aborted) {
-      throw new Error('Operation cancelled');
-    }
-
-    const playlistBuffer = await EncryptionUtils.decryptData(encryptedPlaylist, key, abortSignal);
-    const playlistData = new Uint8Array(playlistBuffer);
-
-    console.log('[FileManagerService] HLS playlist decrypted, size:', playlistData.length);
-
-    // Create a function to decrypt segments on demand
-    const getSegment = async (segmentIndex: number): Promise<Uint8Array> => {
-      if (segmentIndex < 0 || segmentIndex >= metadata.segmentCount) {
-        throw new Error(`Invalid segment index: ${segmentIndex}. Valid range: 0-${metadata.segmentCount - 1}`);
-      }
-
-      console.log(`[FileManagerService] Loading HLS segment ${segmentIndex}`);
-      const segmentPath = `${uuid}.ts.${segmentIndex}.enc`;
-      let encryptedSegment: Uint8Array;
-
-      if ((Platform.OS as any) === 'web') {
-        const segmentBase64 = await FileSystem.readFile(segmentPath, 'base64');
-        encryptedSegment = base64ToUint8Array(segmentBase64);
-      } else if (RNFS) {
-        const segmentBase64 = await RNFS.readFile(`${RNFS.DocumentDirectoryPath}/${segmentPath}`, 'base64');
-        encryptedSegment = base64ToUint8Array(segmentBase64);
-      } else {
-        throw new Error('File system not available');
-      }
-
-      const segmentBuffer = await EncryptionUtils.decryptData(encryptedSegment, key);
-      const segmentData = new Uint8Array(segmentBuffer);
-      
-      console.log(`[FileManagerService] HLS segment ${segmentIndex} decrypted, size:`, segmentData.length);
-      return segmentData;
-    };
-
-    const end = Date.now();
-    console.log('[FileManagerService] loadEncryptedHLSVideo: END', { 
-      uuid, 
-      segmentCount: metadata.segmentCount,
-      playlistSize: playlistData.length,
-      durationMs: end - start, 
-      timestamp: end 
-    });
-
-    return {
-      playlistData,
-      metadata,
-      getSegment
-    };
-  }
-
-  /**
    * Loads encrypted file metadata only
    */
   static async loadFileMetadata(uuid: string, key: Uint8Array): Promise<FileMetadata> {
     this.checkKey(key, 'loadFileMetadata');
-    console.log('[FileManagerService] loadFileMetadata: START', { uuid });
-    
+    const metadataPath = this.getFilePath(uuid, 'metadata');
     try {
       // Read encrypted metadata as base64
       let metadataBase64: string;
-      const metadataFilename = `${uuid}.metadata.enc`;
-      console.log('[FileManagerService] loadFileMetadata: Attempting to read file:', metadataFilename);
-      
-      metadataBase64 = await FileSystem.readFile(metadataFilename, 'base64');
-      console.log('[FileManagerService] loadFileMetadata: Successfully read metadata file, length:', metadataBase64?.length || 0);
-      
+      metadataBase64 = await FileSystem.readFile(`${uuid}.metadata.enc`, 'base64');
       if (!metadataBase64) {
         throw new Error('metadataBase64 is empty');
       }
@@ -927,17 +601,14 @@ export class FileManagerService {
       try {
         metadataBuffer = await EncryptionUtils.decryptData(encryptedMetadataBytes, key);
         metadataString = new TextDecoder().decode(metadataBuffer);
-        console.log('[FileManagerService] loadFileMetadata: Successfully decrypted metadata');
       } catch (e) {
         console.error('Failed to decrypt metadata for', uuid, e);
         throw e;
       }
-      const metadata = JSON.parse(metadataString) as FileMetadata;
-      console.log('[FileManagerService] loadFileMetadata: SUCCESS', { uuid, metadata });
-      return metadata;
+      return JSON.parse(metadataString) as FileMetadata;
     } catch (error) {
-      console.error('[FileManagerService] loadFileMetadata: ERROR for', uuid, error);
-      throw new Error(`Failed to load file metadata: ${error instanceof Error ? error.message : String(error)}`);
+      console.error('Failed to load metadata for', uuid, error);
+      throw new Error('Failed to load file metadata');
     }
   }
 
@@ -1017,36 +688,21 @@ export class FileManagerService {
       const previewPath = this.getFilePath(uuid, 'preview');
       const chunksDirectoryName = `${uuid}.chunks.enc`;
 
-      // Try to read metadata to check if this is a chunked video or HLS video
+      // Try to read metadata to check if this is a chunked video
       let isChunked = false;
-      let isHLS = false;
-      let segmentCount = 0;
       try {
         if ((Platform.OS as any) === 'web') {
           const metadataBase64 = await FileSystem.readFile(`${uuid}.metadata.enc`, 'base64');
-          const encryptedMetadata = base64ToUint8Array(metadataBase64);
-          // We can't decrypt without key, so check file patterns instead
+          // For web, we can try to check if chunks exist by listing files
           const files = await FileSystem.listFiles();
           isChunked = files.some((file: any) => {
             const fileName = typeof file === 'string' ? file : file.name;
             return fileName.startsWith(`${uuid}.`) && fileName.includes('.chunk.enc');
           });
-          isHLS = files.some((file: any) => {
-            const fileName = typeof file === 'string' ? file : file.name;
-            return fileName === `${uuid}.m3u8.enc`;
-          });
-          if (isHLS) {
-            // Count HLS segments
-            segmentCount = files.filter((file: any) => {
-              const fileName = typeof file === 'string' ? file : file.name;
-              return fileName.startsWith(`${uuid}.ts.`) && fileName.endsWith('.enc');
-            }).length;
-          }
         }
       } catch {
-        // If we can't read metadata, assume it's not chunked or HLS
+        // If we can't read metadata, assume it's not chunked
         isChunked = false;
-        isHLS = false;
       }
 
       // Delete main file
@@ -1080,28 +736,6 @@ export class FileManagerService {
           }
         }
         
-        // If this is an HLS video, delete the playlist and segment files
-        if (isHLS) {
-          try {
-            console.log(`[FileManagerService] Deleting HLS video files for UUID: ${uuid} (${segmentCount} segments)`);
-            
-            // Delete playlist file
-            try { await FileSystem.unlink(`${uuid}.m3u8.enc`); } catch {}
-            
-            // Delete segment files
-            for (let i = 0; i < segmentCount; i++) {
-              try {
-                await FileSystem.unlink(`${uuid}.ts.${i}.enc`);
-                console.log(`[FileManagerService] Deleted HLS segment: ${uuid}.ts.${i}.enc`);
-              } catch (segmentError) {
-                console.warn(`[FileManagerService] Failed to delete HLS segment ${i}:`, segmentError);
-              }
-            }
-          } catch (hlsError) {
-            console.warn(`[FileManagerService] Failed to delete HLS files:`, hlsError);
-          }
-        }
-        
         return true;
       } else {
         if (await FileSystem.exists(filePath)) {
@@ -1118,7 +752,7 @@ export class FileManagerService {
         if (isChunked) {
           try {
             console.log(`[FileManagerService] Deleting chunked video files for UUID: ${uuid}`);
-            const files = await FileSystem.readDir(this.getDocumentsPath());
+            const files = await FileSystem.readDir();
             const chunkFiles = files.filter((file: any) => {
               const fileName = file.name || file;
               return fileName.startsWith(`${uuid}.`) && fileName.includes('.chunk.enc');
@@ -1127,8 +761,7 @@ export class FileManagerService {
             for (const chunkFile of chunkFiles) {
               try {
                 const fileName = chunkFile.name || chunkFile;
-                const fullPath = `${this.getDocumentsPath()}/${fileName}`;
-                await FileSystem.unlink(fullPath);
+                await FileSystem.unlink(fileName);
                 console.log(`[FileManagerService] Deleted chunk: ${fileName}`);
               } catch (chunkError) {
                 const fileName = chunkFile.name || chunkFile;
@@ -1137,32 +770,6 @@ export class FileManagerService {
             }
           } catch (chunksError) {
             console.warn(`[FileManagerService] Failed to delete chunk files:`, chunksError);
-          }
-        }
-        
-        // For native, check if HLS files exist and delete them
-        if (isHLS) {
-          try {
-            console.log(`[FileManagerService] Deleting HLS video files for UUID: ${uuid} (${segmentCount} segments)`);
-            
-            // Delete playlist file
-            try { 
-              const playlistPath = `${this.getDocumentsPath()}/${uuid}.m3u8.enc`;
-              await FileSystem.unlink(playlistPath); 
-            } catch {}
-            
-            // Delete segment files
-            for (let i = 0; i < segmentCount; i++) {
-              try {
-                const segmentPath = `${this.getDocumentsPath()}/${uuid}.ts.${i}.enc`;
-                await FileSystem.unlink(segmentPath);
-                console.log(`[FileManagerService] Deleted HLS segment: ${uuid}.ts.${i}.enc`);
-              } catch (segmentError) {
-                console.warn(`[FileManagerService] Failed to delete HLS segment ${i}:`, segmentError);
-              }
-            }
-          } catch (hlsError) {
-            console.warn(`[FileManagerService] Failed to delete HLS files:`, hlsError);
           }
         }
         
@@ -1241,72 +848,6 @@ export class FileManagerService {
       return { deletedCount };
     } catch (error) {
       console.error('[FileManagerService] clearAllFiles: Error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Removes duplicate HLS videos that have the same name but different UUIDs
-   * Keeps the most recent version based on encryptedAt timestamp
-   */
-  static async cleanupDuplicateHLSVideos(key: Uint8Array): Promise<{ removedCount: number, keptVideos: string[] }> {
-    this.checkKey(key, 'cleanupDuplicateHLSVideos');
-    
-    try {
-      const allFiles = await this.listEncryptedFiles(key);
-      const hlsFiles = allFiles.filter(file => 
-        (file.metadata as any).isHLS === true && 
-        (file.metadata as any).version === '3.0'
-      );
-      
-      console.log(`[FileManagerService] Found ${hlsFiles.length} HLS video files`);
-      
-      // Group by name
-      const groupedByName = new Map<string, typeof hlsFiles>();
-      for (const file of hlsFiles) {
-        const name = file.metadata.name;
-        if (!groupedByName.has(name)) {
-          groupedByName.set(name, []);
-        }
-        groupedByName.get(name)!.push(file);
-      }
-      
-      let removedCount = 0;
-      const keptVideos: string[] = [];
-      
-      for (const [name, duplicates] of groupedByName.entries()) {
-        if (duplicates.length > 1) {
-          console.log(`[FileManagerService] Found ${duplicates.length} duplicates of "${name}"`);
-          
-          // Sort by encryptedAt timestamp (newest first)
-          duplicates.sort((a, b) => 
-            new Date(b.metadata.encryptedAt).getTime() - new Date(a.metadata.encryptedAt).getTime()
-          );
-          
-          // Keep the newest, delete the rest
-          const toKeep = duplicates[0];
-          const toDelete = duplicates.slice(1);
-          
-          keptVideos.push(`${toKeep.metadata.name} (${toKeep.uuid})`);
-          
-          for (const duplicate of toDelete) {
-            console.log(`[FileManagerService] Deleting duplicate HLS video: ${duplicate.metadata.name} (${duplicate.uuid})`);
-            try {
-              await this.deleteEncryptedFile(duplicate.uuid);
-              removedCount++;
-            } catch (error) {
-              console.warn(`[FileManagerService] Failed to delete duplicate ${duplicate.uuid}:`, error);
-            }
-          }
-        } else {
-          keptVideos.push(`${duplicates[0].metadata.name} (${duplicates[0].uuid})`);
-        }
-      }
-      
-      console.log(`[FileManagerService] Cleanup complete: removed ${removedCount} duplicates, kept ${keptVideos.length} videos`);
-      return { removedCount, keptVideos };
-    } catch (error) {
-      console.error('[FileManagerService] Error during HLS cleanup:', error);
       throw error;
     }
   }

@@ -621,66 +621,22 @@ const UploadScreen = () => {
       setIsPickerActive(true);
       console.log('[UploadScreen] Set video picker active to true');
 
-      console.log('[UploadScreen] Using web HLS video picker');
-      // On web, use HTML file input for HLS video selection
+      console.log('[UploadScreen] Using web video picker');
+      // On web, use HTML file input for video selection
       const win: any = (global as any).window || (global as any);
       if (win && win.document) {
         const input = win.document.createElement('input');
         input.type = 'file';
-        input.accept = '.m3u8,.ts,video/x-mpegURL,application/x-mpegURL,video/mp2t';
+        input.accept = 'video/*';
         input.multiple = true;
         input.onchange = (event: any) => {
-          console.log('[UploadScreen] Web HLS video picker onChange triggered');
+          console.log('[UploadScreen] Web video picker onChange triggered');
           const files = Array.from(event.target.files || []);
-          console.log('[UploadScreen] Selected HLS video files count:', files.length);
-          
-          // Validate that all files are HLS format (.m3u8 playlist or .ts segments)
-          const invalidFiles = files.filter((file: any) => {
-            const fileName = file.name.toLowerCase();
-            const isM3U8 = fileName.endsWith('.m3u8') || 
-                          file.type.includes('video/x-mpegURL') ||
-                          file.type.includes('application/x-mpegURL');
-            const isTSSegment = fileName.endsWith('.ts') || 
-                               file.type.includes('video/mp2t') ||
-                               file.type.includes('application/octet-stream');
-            return !(isM3U8 || isTSSegment);
-          });
-          
-          if (invalidFiles.length > 0) {
-            console.log('[UploadScreen] Invalid file formats detected:', invalidFiles.map((f: any) => f.name));
-            showAlert('Error', 'Only HLS video files (.m3u8 playlist and .ts segments) are supported. Please convert your video to HLS format and re-upload.');
-            setIsPickerActive(false);
-            return;
-          }
-          
-          // Validate that we have at least one .m3u8 file
-          const m3u8Files = files.filter((file: any) => {
-            const fileName = file.name.toLowerCase();
-            return fileName.endsWith('.m3u8') || 
-                   file.type.includes('video/x-mpegURL') ||
-                   file.type.includes('application/x-mpegURL');
-          });
-          
-          if (m3u8Files.length === 0) {
-            console.log('[UploadScreen] No .m3u8 playlist file found');
-            showAlert('Error', 'You must select at least one .m3u8 playlist file along with its .ts segment files.');
-            setIsPickerActive(false);
-            return;
-          }
-          
-          if (m3u8Files.length > 1) {
-            console.log('[UploadScreen] Multiple .m3u8 files found');
-            showAlert('Error', 'Please select only one .m3u8 playlist file per upload along with its corresponding .ts segment files.');
-            setIsPickerActive(false);
-            return;
-          }
-          
+          console.log('[UploadScreen] Selected video files count:', files.length);
           if (files.length > 0) {
             const newFiles = files.map((file: any) => ({
               name: file.name,
-              type: file.name.toLowerCase().endsWith('.m3u8') ? 'video/x-mpegURL' : 
-                    file.name.toLowerCase().endsWith('.ts') ? 'video/mp2t' : 
-                    (file.type || 'video/x-mpegURL'),
+              type: file.type,
               size: file.size,
               uri: '', // Will be handled differently on web
               webFile: file, // Store the actual File object for web
@@ -716,9 +672,6 @@ const UploadScreen = () => {
     setUploading(true);
     console.log('[UploadScreen] Set uploading state to true');
     
-    let processedFilesCount = 0;
-    let skippedSegments = 0;
-    
     try {
       for (let i = 0; i < pendingFiles.length; i++) {
         const file = pendingFiles[i];
@@ -735,7 +688,7 @@ const UploadScreen = () => {
         // Read file data using cross-platform approach
         let fileData: Uint8Array;
         
-        if (Platform.OS === 'web' && file.webFile) {
+        if ((Platform as any).OS === 'web' && file.webFile) {
           console.log(`[UploadScreen] Reading web file: ${file.name}`);
           // On web, read from the File object directly
           try {
@@ -748,7 +701,7 @@ const UploadScreen = () => {
           }
         } else if (file.uri) {
           console.log(`[UploadScreen] Reading file from URI: ${file.uri}`);
-          if (Platform.OS === 'web') {
+          if ((Platform as any).OS === 'web') {
             // On web, URI might be a blob URL from file picker
             try {
               console.log(`[UploadScreen] Fetching web blob from URI: ${file.uri}`);
@@ -793,65 +746,19 @@ const UploadScreen = () => {
         console.log(`[UploadScreen] Folder path: ${metaEditor.folderPath}, tags: ${metaEditor.tags.join(', ')}`);
         
         try {
-          console.log(`[UploadScreen] Files pending at start of iteration ${i + 1}: ${pendingFiles.map(f => f.name).join(', ')}`);
+          // Check if this is a video file on web - use chunked upload
+          const isVideo = file.type && file.type.startsWith('video/');
           
-          // Check if this is an HLS video file on web - use HLS upload
-          // Be more specific: only .m3u8 files are playlists, regardless of MIME type
-          const isM3U8Playlist = file.name.toLowerCase().endsWith('.m3u8');
-          const isTSSegment = file.name.toLowerCase().endsWith('.ts') ||
-                             (file.type && (file.type.includes('video/mp2t') || 
-                                           file.type.includes('application/octet-stream')));
-          
-          console.log(`[UploadScreen] File ${file.name}: isM3U8=${isM3U8Playlist}, isTSSegment=${isTSSegment}, platform=${Platform.OS}`);
-          
-          if ((isM3U8Playlist || isTSSegment) && Platform.OS === 'web') {
-            // Handle HLS files as a group - only process when we hit the .m3u8 file
-            if (isM3U8Playlist) {
-              console.log(`[UploadScreen] Processing HLS playlist and segments starting with: ${file.name}`);
-              
-              // Find all .ts segment files in the pending files (that haven't been processed yet)
-              const tsSegments = pendingFiles.filter(f => 
-                f.name.toLowerCase().endsWith('.ts') || 
-                (f.type && (f.type.includes('video/mp2t') || f.type.includes('application/octet-stream')))
-              );
-              
-              console.log(`[UploadScreen] Found ${tsSegments.length} .ts segment files for HLS:`, tsSegments.map(s => s.name));
-              
-              // Prevent processing if no segments found
-              if (tsSegments.length === 0) {
-                console.warn(`[UploadScreen] No .ts segments found for playlist ${file.name}, treating as regular file`);
-                const savedMetadata = await fileManagerService.saveEncryptedFile(
-                  fileData,
-                  file.name,
-                  file.type,
-                  metaEditor.folderPath.split('/').filter(Boolean),
-                  metaEditor.tags
-                );
-                console.log(`[UploadScreen] Saved playlist as regular file: ${file.name}`);
-                processedFilesCount++;
-              } else {
-                const savedMetadata = await fileManagerService.saveEncryptedHLSVideo(
-                  fileData, // .m3u8 playlist data
-                  file.name,
-                  file.type || 'video/x-mpegURL',
-                  tsSegments, // .ts segment files
-                  metaEditor.folderPath.split('/').filter(Boolean),
-                  metaEditor.tags
-                );
-                console.log(`[UploadScreen] Successfully saved HLS video: ${file.name} with ${tsSegments.length} segments`);
-                console.log(`[UploadScreen] HLS Video UUID: ${savedMetadata.uuid}`);
-                processedFilesCount++; // Count this as one HLS video file
-                skippedSegments += tsSegments.length; // Track how many segments we'll skip
-              }
-            } else {
-              // Skip .ts files as they'll be processed with the .m3u8 file
-              console.log(`[UploadScreen] Skipping .ts segment file (will be processed with playlist): ${file.name}`);
-              continue;
-            }
-          } else if ((isM3U8Playlist || isTSSegment) && Platform.OS !== 'web') {
-            // HLS video on native platform - not supported
-            console.error(`[UploadScreen] HLS video upload not supported on native platforms: ${file.name}`);
-            throw new Error(`HLS video upload is only supported on web. File: ${file.name}`);
+          if (isVideo && Platform.OS === 'web') {
+            console.log(`[UploadScreen] Using chunked upload for video: ${file.name}`);
+            const savedMetadata = await fileManagerService.saveEncryptedVideoChunked(
+              fileData,
+              file.name,
+              file.type,
+              metaEditor.folderPath.split('/').filter(Boolean),
+              metaEditor.tags
+            );
+            console.log(`[UploadScreen] Successfully saved chunked video: ${file.name}`);
           } else {
             console.log(`[UploadScreen] Using standard upload for file: ${file.name}`);
             const savedMetadata = await fileManagerService.saveEncryptedFile(
@@ -862,7 +769,6 @@ const UploadScreen = () => {
               metaEditor.tags
             );
             console.log(`[UploadScreen] Successfully saved encrypted file: ${file.name}`);
-            processedFilesCount++; // Count this as one regular file
           }
         } catch (saveError) {
           console.error(`[UploadScreen] Failed to save encrypted file ${file.name}:`, saveError);
@@ -870,8 +776,8 @@ const UploadScreen = () => {
         }
       }
       
-      console.log(`[UploadScreen] Successfully processed ${processedFilesCount} file(s) (${skippedSegments} segments were part of HLS videos)`);
-      showAlert('Success', `Uploaded and encrypted ${processedFilesCount} file(s) successfully`);
+      console.log(`[UploadScreen] Successfully uploaded and encrypted ${pendingFiles.length} file(s)`);
+      showAlert('Success', `Uploaded and encrypted ${pendingFiles.length} file(s) successfully`);
       
       // Clean up temporary files after successful upload
       console.log('[UploadScreen] Starting cleanup of temporary files');
@@ -917,7 +823,7 @@ const UploadScreen = () => {
     {
       id: 'video',
       title: 'Videos',
-      subtitle: Platform.OS === 'web' ? 'Upload HLS video files (web only)' : 'Video upload not supported on mobile',
+      subtitle: Platform.OS === 'web' ? 'Upload video files (web only)' : 'Video upload not supported on mobile',
       icon: 'video-library',
       color: Platform.OS === 'web' ? '#FF9500' : '#999999',
       onPress: Platform.OS === 'web' ? handleVideoPicker : () => {},

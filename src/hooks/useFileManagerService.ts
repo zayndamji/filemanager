@@ -37,24 +37,6 @@ export const useFileManagerService = () => {
       return FileManagerService.saveEncryptedVideoChunked(fileData, originalFileName, mimeType, key, folderPath, tags);
     },
 
-    saveEncryptedHLSVideo: async (
-      playlistData: Uint8Array,
-      playlistFileName: string,
-      playlistMimeType: string,
-      segmentFiles: Array<{ name: string; type: string; size?: number; uri?: string; webFile?: File }>,
-      folderPath: string[] = [],
-      tags: string[] = []
-    ): Promise<{
-      uuid: string;
-      metadata: FileMetadata;
-      filePath: string;
-      metadataPath: string;
-      isEncrypted: boolean;
-    }> => {
-      const key = checkDerivedKey();
-      return FileManagerService.saveEncryptedHLSVideo(playlistData, playlistFileName, playlistMimeType, segmentFiles, key, folderPath, tags);
-    },
-
     loadEncryptedFile: async (
       uuid: string,
       abortSignal?: AbortSignal,
@@ -72,18 +54,6 @@ export const useFileManagerService = () => {
     ): Promise<{ fileData?: Uint8Array; tempFilePath?: string; metadata: FileMetadata; totalChunks: number }> => {
       const key = checkDerivedKey();
       return FileManagerService.loadEncryptedVideoChunked(uuid, key, abortSignal, progressCallback, targetTempPath);
-    },
-
-    loadEncryptedHLSVideo: async (
-      uuid: string,
-      abortSignal?: AbortSignal
-    ): Promise<{
-      playlistData: Uint8Array;
-      metadata: FileMetadata & { isHLS: boolean; segmentCount: number; segmentFiles: string[] };
-      getSegment: (segmentIndex: number) => Promise<Uint8Array>;
-    }> => {
-      const key = checkDerivedKey();
-      return FileManagerService.loadEncryptedHLSVideo(uuid, key, abortSignal);
     },
 
     loadFileMetadata: async (uuid: string): Promise<FileMetadata> => {
@@ -118,10 +88,5 @@ export const useFileManagerService = () => {
     deleteTempFile: FileManagerService.deleteTempFile,
     filterFilesByPath: FileManagerService.filterFilesByPath,
     getSubfolders: FileManagerService.getSubfolders,
-    
-    cleanupDuplicateHLSVideos: async (): Promise<{ removedCount: number, keptVideos: string[] }> => {
-      const key = checkDerivedKey();
-      return FileManagerService.cleanupDuplicateHLSVideos(key);
-    },
   };
 };
