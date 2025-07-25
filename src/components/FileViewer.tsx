@@ -44,7 +44,7 @@ import ImageFile from './FileTypes/ImageFile';
 import TextFile from './FileTypes/TextFile';
 import { AudioFile } from './FileTypes/AudioFile';
 import PDFFile from './FileTypes/PDFFile';
-import VideoFile from './FileTypes/VideoFile';
+import { AdaptiveVideoPlayer } from './VideoPlayer';
 import { FileMetadata, FileManagerService } from '../utils/FileManagerService';
 import { useFileManagerService } from '../hooks/useFileManagerService';
 import { usePasswordContext } from '../context/PasswordContext';
@@ -485,13 +485,13 @@ const FileViewer: React.FC<FileViewerProps> = ({
     } else if (mimeType.startsWith('video/') || mimeType.includes('mpegurl') || 
                metadata.name.toLowerCase().endsWith('.m3u8') || 
                metadata.name.toLowerCase().endsWith('.ts')) {
-      console.log('[FileViewer] Using VideoFile for video/HLS:', metadata.name, 'Type:', mimeType, 'Size:', formatFileSize(metadata.size), 'Detection:', {
+      console.log('[FileViewer] Using AdaptiveVideoPlayer for video/HLS:', metadata.name, 'Type:', mimeType, 'Size:', formatFileSize(metadata.size), 'Detection:', {
         startsWithVideo: mimeType.startsWith('video/'),
         includesMpegurl: mimeType.includes('mpegurl'),
         endsWithM3u8: metadata.name.toLowerCase().endsWith('.m3u8'),
         endsWithTs: metadata.name.toLowerCase().endsWith('.ts')
       });
-      // Create EncryptedFile object for VideoFile component
+      // Create EncryptedFile object for AdaptiveVideoPlayer component
       const encryptedFile: any = {
         uuid: metadata.uuid,
         metadata: viewerMetadata,
@@ -500,12 +500,17 @@ const FileViewer: React.FC<FileViewerProps> = ({
         isEncrypted: true
       };
       
-      rendered = <VideoFile 
+      // Use the adaptive video player for all video types
+      console.log('[FileViewer] Using AdaptiveVideoPlayer for optimal video experience:', metadata.name);
+      rendered = <AdaptiveVideoPlayer 
         file={encryptedFile} 
         onError={(error) => {
-          console.error('[FileViewer] Video error:', error);
+          console.error('[FileViewer] Adaptive video error:', error);
           setFileLoadError(error);
-        }} 
+        }}
+        preferSeamless={true}
+        bufferAhead={5}
+        maxBufferSize={60}
       />;
     } else if (mimeType === 'application/pdf') {
       rendered = <PDFFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
