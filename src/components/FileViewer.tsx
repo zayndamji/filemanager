@@ -451,13 +451,13 @@ const FileViewer: React.FC<FileViewerProps> = ({
           borderColor: theme.border,
           position: 'relative',
           flex: 1, // Take up available space
-          maxHeight: '65%', // Limit image container height to fit most of the viewport and hide file details
+          maxHeight: '85%', // Increase height to fill almost the entire viewport, leaving space for file details
         }}>
           <ImageFile 
             fileData={displayData} 
             mimeType={mimeType} 
             isPreview={isShowingPreview}
-            showZoomControls={false}
+            showZoomControls={true}
             style={{ backgroundColor: theme.surface, borderRadius: 8, flex: 1 }} 
           />
           {isLoadingFullImage && isShowingPreview && (
@@ -495,7 +495,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
           borderColor: theme.border,
           position: 'relative',
           flex: 1,
-          maxHeight: '75%',
+          maxHeight: '85%', // Increase height for ImageSet as well
         }}>
           <ImageSet 
             fileData={actualFileData} 

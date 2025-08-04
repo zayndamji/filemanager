@@ -46,7 +46,6 @@ interface LoadedImage {
   fullData: Uint8Array | null; // Full data (loaded on demand)
   isLoadingPreview: boolean;
   isLoadingFull: boolean;
-  isImageLoaded: boolean; // Track if the Image component has finished loading
   error?: string;
 }
 
@@ -86,20 +85,7 @@ const ImageSet: React.FC<ImageSetProps> = ({
     }
   };
 
-  // Handle when the Image component finishes loading
-  const handleImageLoadEnd = (index: number) => {
-    setLoadedImages(prev => {
-      const existing = prev.get(index);
-      if (!existing) return prev;
-      
-      return new Map(prev.set(index, {
-        ...existing,
-        isImageLoaded: true
-      }));
-    });
-  };
-
-    // Initialize ImageSet when fileData or metadata changes
+  // Initialize ImageSet when fileData or metadata changes
   React.useEffect(() => {
     try {
       // For new format, use metadata.imageSetImages if available
@@ -208,8 +194,7 @@ const ImageSet: React.FC<ImageSetProps> = ({
         previewData: null,
         fullData: null,
         isLoadingPreview: false,
-        isLoadingFull: false,
-        isImageLoaded: false
+        isLoadingFull: false
       };
       
       return new Map(prev.set(index, {
@@ -255,8 +240,7 @@ const ImageSet: React.FC<ImageSetProps> = ({
           previewData: !loadFull ? result.fileData : existing.previewData,
           fullData: loadFull ? result.fileData : existing.fullData,
           isLoadingPreview: !loadFull ? false : existing.isLoadingPreview,
-          isLoadingFull: loadFull ? false : existing.isLoadingFull,
-          isImageLoaded: false // Reset when new data is loaded
+          isLoadingFull: loadFull ? false : existing.isLoadingFull
         }));
       });
     } catch (error) {
@@ -268,8 +252,7 @@ const ImageSet: React.FC<ImageSetProps> = ({
           previewData: null,
           fullData: null,
           isLoadingPreview: false,
-          isLoadingFull: false,
-          isImageLoaded: false
+          isLoadingFull: false
         };
         
         return new Map(prev.set(index, {
@@ -285,18 +268,6 @@ const ImageSet: React.FC<ImageSetProps> = ({
   // Load the currently selected image (preview first, then full image)
   React.useEffect(() => {
     if (imageSetData?.imageRefs && selectedImageIndex >= 0) {
-      // Clear loading state for new image
-      setLoadedImages(prev => {
-        const existing = prev.get(selectedImageIndex);
-        if (existing) {
-          return new Map(prev.set(selectedImageIndex, {
-            ...existing,
-            isImageLoaded: false
-          }));
-        }
-        return prev;
-      });
-      
       // Load preview first
       loadImage(selectedImageIndex, false);
       
@@ -336,7 +307,7 @@ const ImageSet: React.FC<ImageSetProps> = ({
   let currentImageName: string = 'Image';
   let isCurrentImageLoading = false;
   let isShowingPreview = false;
-  let showImageLoading = false; // Show loading spinner over the image
+  let showImageLoading = false; // Show loading spinner over the image (only for data loading, not image rendering)
 
   if (imageSetData.imageRefs) {
     // New format: get from loaded images
@@ -349,11 +320,8 @@ const ImageSet: React.FC<ImageSetProps> = ({
       // Only show loading if we have no data at all, or if we're loading preview and have no data
       isCurrentImageLoading = (!loadedImage.previewData && !loadedImage.fullData) && (loadedImage.isLoadingPreview || loadedImage.isLoadingFull);
       isShowingPreview = !loadedImage.fullData && !!loadedImage.previewData;
-      // Show image loading spinner if:
-      // 1. We have data but the Image component hasn't finished loading it, OR
-      // 2. We're loading full image while showing preview (mimic ImageFile behavior)
-      showImageLoading = (!!currentImageData && !loadedImage.isImageLoaded) || 
-                        (isShowingPreview && loadedImage.isLoadingFull);
+      // Show image loading spinner only when loading full image while showing preview (to indicate upgrade in progress)
+      showImageLoading = isShowingPreview && loadedImage.isLoadingFull;
     } else {
       isCurrentImageLoading = true;
     }
@@ -429,14 +397,12 @@ const ImageSet: React.FC<ImageSetProps> = ({
           </View>
         ) : currentImageData ? (
           <View style={{ flex: 1, position: 'relative' }}>
-            {/* Use custom Image with onLoadEnd callback instead of ImageFile for better loading control */}
-            <Image
-              source={{ 
-                uri: `data:${currentImageType};base64,${uint8ArrayToBase64(currentImageData)}`
-              }}
-              style={{ flex: 1 }}
-              resizeMode="contain"
-              onLoadEnd={() => handleImageLoadEnd(selectedImageIndex)}
+            {/* Use ImageFile component for zoom functionality */}
+            <ImageFile
+              fileData={currentImageData}
+              mimeType={currentImageType}
+              showZoomControls={true}
+              style={{ flex: 1, backgroundColor: 'transparent' }}
             />
             
             {/* Loading spinner overlay (like ImageFile) */}
@@ -465,7 +431,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     flex: 1,
-    minHeight: 250, // Reduced from 300 to account for the selector bar on mobile
+    minHeight: 400, // Increased from 250 to provide more space for images
   },
   selectorContainer: {
     padding: 16,

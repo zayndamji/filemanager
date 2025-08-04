@@ -122,11 +122,11 @@ const ImageFileWeb: React.FC<ImageFileProps> = ({ fileData, mimeType, isPreview 
       justifyContent: 'center', 
       borderRadius: 12, 
       padding: 16,
-      minHeight: 'calc(75vh - 100px)' // Minimum height for image container to fit most of the viewport
+      minHeight: 'calc(80vh - 100px)' // Increased from 75vh to use more viewport space
     }}>
       <img src={dataUri} alt="image" style={{ 
         maxWidth: '100%', 
-        maxHeight: 'calc(75vh - 100px)', // Limit image height to fit within container and hide file details
+        maxHeight: 'calc(80vh - 100px)', // Increased from 75vh to match container height
         borderRadius: 8,
         objectFit: 'contain'
       }} />
@@ -147,15 +147,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
-    minHeight: height * 0.65, // Minimum height for image container to fit most of the viewport
+    minHeight: height * 0.75, // Increased from 0.65 to fill more of the viewport
     overflow: 'hidden', // Clip content to keep image within bounds
   },
 
   image: {
     maxWidth: width * 0.9,
-    maxHeight: height * 0.7, // Limit image height to fit within container and hide file details
+    maxHeight: height * 0.8, // Increased from 0.7 to use more screen space
     width: width * 0.9,
-    height: height * 0.7,
+    height: height * 0.8,
     resizeMode: 'contain',
   },
 

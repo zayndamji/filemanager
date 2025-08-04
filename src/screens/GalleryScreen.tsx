@@ -144,6 +144,16 @@ const getStyles = (theme: typeof import('../theme').darkTheme, screenData: { wid
     borderRadius: 8,
     padding: 2,
   },
+  imageSetBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 8,
+    padding: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   encryptedOverlay: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -317,7 +327,7 @@ const GalleryScreen = () => {
     }
   };
 
-  // Function to expand ImageSets into individual images
+  // Function to show only primary images from ImageSets (instead of all individual images)
   const expandImageSets = async (files: EncryptedFile[]): Promise<ExpandedImageItem[]> => {
     const expandedItems: ExpandedImageItem[] = [];
     
@@ -330,24 +340,25 @@ const GalleryScreen = () => {
           // Sort the individual images the same way as in ImageSet component
           const sortedImageSetImages = sortImageFiles(imageSetImages, sortBy);
           
-          // Use the individual image files directly (new format)
-          console.log('[GalleryScreen] Found', imageSetImages.length, 'individual images for ImageSet:', file.uuid);
-          sortedImageSetImages.forEach((imageFile, index) => {
+          // Only use the first (primary) image from the ImageSet
+          console.log('[GalleryScreen] Found', imageSetImages.length, 'individual images for ImageSet:', file.uuid, '- showing only primary image');
+          const primaryImage = sortedImageSetImages[0];
+          if (primaryImage) {
             expandedItems.push({
-              uuid: imageFile.uuid, // Use the actual individual image UUID
-              imageIndex: index,
+              uuid: primaryImage.uuid, // Use the actual individual image UUID
+              imageIndex: 0, // Always 0 since we're showing the primary image
               metadata: {
-                name: imageFile.metadata.name,
-                type: imageFile.metadata.type,
-                size: imageFile.metadata.size,
+                name: file.metadata.name, // Use ImageSet name instead of individual image name
+                type: primaryImage.metadata.type,
+                size: primaryImage.metadata.size,
                 tags: file.metadata.tags, // Use ImageSet tags
-                encryptedAt: imageFile.metadata.encryptedAt,
+                encryptedAt: primaryImage.metadata.encryptedAt,
               },
               isImageSet: true,
               originalFile: file, // Keep reference to ImageSet container
-              imageUuid: imageFile.uuid // Store the individual image UUID for loading
+              imageUuid: primaryImage.uuid // Store the individual image UUID for loading
             });
-          });
+          }
         } else {
           // Fallback for old ImageSet format - load and parse the data
           console.log('[GalleryScreen] No individual images found, loading old format ImageSet:', file.uuid);
@@ -363,22 +374,21 @@ const GalleryScreen = () => {
               newExpandedImageData.set(file.uuid, imageSetData);
               setExpandedImageData(newExpandedImageData);
               
-              // Add individual images from this ImageSet
-              if (imageSetData.images) {
-                imageSetData.images.forEach((img: any, index: number) => {
-                  expandedItems.push({
-                    uuid: `${file.uuid}_${index}`, // Virtual UUID for old format
-                    imageIndex: index,
-                    metadata: {
-                      name: img.name,
-                      type: img.mimeType,
-                      size: 0,
-                      tags: file.metadata.tags,
-                      encryptedAt: file.metadata.encryptedAt,
-                    },
-                    isImageSet: true,
-                    originalFile: file
-                  });
+              // Only add the first (primary) image from this ImageSet
+              if (imageSetData.images && imageSetData.images.length > 0) {
+                const primaryImg = imageSetData.images[0];
+                expandedItems.push({
+                  uuid: `${file.uuid}_0`, // Virtual UUID for old format primary image
+                  imageIndex: 0,
+                  metadata: {
+                    name: file.metadata.name, // Use ImageSet name
+                    type: primaryImg.mimeType,
+                    size: 0,
+                    tags: file.metadata.tags,
+                    encryptedAt: file.metadata.encryptedAt,
+                  },
+                  isImageSet: true,
+                  originalFile: file
                 });
               }
             } catch (error) {
@@ -392,23 +402,22 @@ const GalleryScreen = () => {
               });
             }
           } else {
-            // Use cached data for old format
+            // Use cached data for old format - only show primary image
             const imageSetData = expandedImageData.get(file.uuid);
-            if (imageSetData && imageSetData.images) {
-              imageSetData.images.forEach((img: any, index: number) => {
-                expandedItems.push({
-                  uuid: `${file.uuid}_${index}`,
-                  imageIndex: index,
-                  metadata: {
-                    name: img.name,
-                    type: img.mimeType,
-                    size: 0,
-                    tags: file.metadata.tags,
-                    encryptedAt: file.metadata.encryptedAt,
-                  },
-                  isImageSet: true,
-                  originalFile: file
-                });
+            if (imageSetData && imageSetData.images && imageSetData.images.length > 0) {
+              const primaryImg = imageSetData.images[0];
+              expandedItems.push({
+                uuid: `${file.uuid}_0`,
+                imageIndex: 0,
+                metadata: {
+                  name: file.metadata.name, // Use ImageSet name
+                  type: primaryImg.mimeType,
+                  size: 0,
+                  tags: file.metadata.tags,
+                  encryptedAt: file.metadata.encryptedAt,
+                },
+                isImageSet: true,
+                originalFile: file
               });
             }
           }
@@ -428,11 +437,11 @@ const GalleryScreen = () => {
       }
     }
     
-    console.log('[GalleryScreen] expandImageSets completed:', {
+    console.log('[GalleryScreen] expandImageSets completed (showing primary images only):', {
       inputFiles: files.length,
       outputItems: expandedItems.length,
       breakdown: expandedItems.reduce((acc, item) => {
-        const type = item.isImageSet ? 'imageset-item' : 'regular-image';
+        const type = item.isImageSet ? 'imageset-primary' : 'regular-image';
         acc[type] = (acc[type] || 0) + 1;
         return acc;
       }, {} as Record<string, number>)
@@ -831,11 +840,19 @@ const GalleryScreen = () => {
       >
         <View style={styles.imageContainer}>
           {thumbnailUri ? (
-            <Image
-              source={{ uri: thumbnailUri }}
-              style={styles.image}
-              resizeMode="cover"
-            />
+            <>
+              <Image
+                source={{ uri: thumbnailUri }}
+                style={styles.image}
+                resizeMode="cover"
+              />
+              {/* Show badge for ImageSets to indicate multiple images */}
+              {item.isImageSet && (
+                <View style={styles.imageSetBadge}>
+                  <WebCompatibleIcon name="collections" size={16} color="#fff" />
+                </View>
+              )}
+            </>
           ) : (
             <View style={styles.loadingContainer}>
               <WebCompatibleIcon 
