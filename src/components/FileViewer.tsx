@@ -41,9 +41,6 @@ import WebCompatibleIcon from './WebCompatibleIcon';
 
 // file type renderers
 import ImageFile from './FileTypes/ImageFile';
-import TextFile from './FileTypes/TextFile';
-import { AudioFile } from './FileTypes/AudioFile';
-import PDFFile from './FileTypes/PDFFile';
 import VideoFile from './FileTypes/VideoFile';
 import { FileMetadata, FileManagerService } from '../utils/FileManagerService';
 import { useFileManagerService } from '../hooks/useFileManagerService';
@@ -474,10 +471,6 @@ const FileViewer: React.FC<FileViewerProps> = ({
           )}
         </View>
       );
-    } else if (mimeType.startsWith('text/') || mimeType === 'application/json') {
-      rendered = <TextFile fileData={actualFileData} />;
-    } else if (mimeType.startsWith('audio/')) {
-      rendered = <AudioFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
     } else if (mimeType.startsWith('video/')) {
       console.log('[FileViewer] Using VideoFile for video:', metadata.name, 'Size:', formatFileSize(metadata.size));
       // For videos, always pass UUID for decryption to avoid duplicate decryption in FileViewer
@@ -487,8 +480,6 @@ const FileViewer: React.FC<FileViewerProps> = ({
       } else {
         rendered = <VideoFile uuid={metadata.uuid} mimeType={mimeType} fileName={metadata.name} totalSize={metadata.size} onClose={onClose} />;
       }
-    } else if (mimeType === 'application/pdf') {
-      rendered = <PDFFile fileData={actualFileData} mimeType={mimeType} fileName={metadata.name} />;
     } else {
       rendered = (
         <View style={styles.unsupportedContainer}>

@@ -2568,11 +2568,6 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
-  - RNSound (0.11.2):
-    - React-Core
-    - RNSound/Core (= 0.11.2)
-  - RNSound/Core (0.11.2):
-    - React-Core
   - RNVectorIcons (10.2.0):
     - boost
     - DoubleConversion
@@ -2701,7 +2696,6 @@ DEPENDENCIES:
   - RNReanimated (from `../node_modules/react-native-reanimated`)
   - RNScreens (from `../node_modules/react-native-screens`)
   - RNShare (from `../node_modules/react-native-share`)
-  - RNSound (from `../node_modules/react-native-sound`)
   - RNVectorIcons (from `../node_modules/react-native-vector-icons`)
   - RNZipArchive (from `../node_modules/react-native-zip-archive`)
   - SocketRocket (~> 0.7.1)
@@ -2885,8 +2879,6 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-screens"
   RNShare:
     :path: "../node_modules/react-native-share"
-  RNSound:
-    :path: "../node_modules/react-native-sound"
   RNVectorIcons:
     :path: "../node_modules/react-native-vector-icons"
   RNZipArchive:
@@ -2981,7 +2973,6 @@ SPEC CHECKSUMS:
   RNReanimated: 792826984b95d2d5ae9a3981191292473c5e9361
   RNScreens: 720c0d6adf8da60c0f57200ea77dbf8f999d5a37
   RNShare: fa47bfafa34c2eb0baeb459e3d46976edfd19513
-  RNSound: 314cc5226453ef4a3314a196c65e8a65e5106a7b
   RNVectorIcons: 922c819e8a7919dc3c291ff8a0421af09630fd5f
   RNZipArchive: 4304f5100eab004eeb7349adc51997b3a28deb76
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748

@@ -19,7 +19,6 @@ config.resolver.alias = {
   'react-native-image-resizer': false,
   'react-native-document-picker': false,
   'react-native-image-picker': false,
-  'react-native-sound': false,
   'react-native-video': false,
   'react-native-share': false,
   'react-native-randombytes': false,

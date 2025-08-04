@@ -14,13 +14,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../utils/AlertUtils';
 
 // Conditionally import native-only libraries
-let DocumentPicker: any = null;
 let launchImageLibrary: any = null;
 let RNFS: any = null;
 
 if (Platform.OS !== 'web') {
   try {
-    DocumentPicker = require('react-native-document-picker').default;
     const ImagePicker = require('react-native-image-picker');
     launchImageLibrary = ImagePicker.launchImageLibrary;
     RNFS = require('react-native-fs');
@@ -386,93 +384,7 @@ const UploadScreen = () => {
     };
   }, []);
 
-  const handleDocumentPicker = async () => {
-    console.log('[UploadScreen] handleDocumentPicker called, isPickerActive:', isPickerActive);
-    
-    // Prevent multiple concurrent picker operations
-    if (isPickerActive) {
-      console.log('[UploadScreen] Picker already active, ignoring request');
-      return;
-    }
 
-    try {
-      setIsPickerActive(true);
-      console.log('[UploadScreen] Set picker active to true');
-
-      // Use strict platform detection - only web if Platform.OS is explicitly 'web'
-      if (Platform.OS === 'web') {
-        console.log('[UploadScreen] Using web document picker');
-        // On web, use HTML file input for document selection
-        const win: any = (global as any).window || (global as any);
-        if (win && win.document) {
-          const input = win.document.createElement('input');
-          input.type = 'file';
-          input.multiple = true;
-          input.onchange = (event: any) => {
-            console.log('[UploadScreen] Web document picker onChange triggered');
-            const files = Array.from(event.target.files || []);
-            console.log('[UploadScreen] Selected files count:', files.length);
-            if (files.length > 0) {
-              const newFiles = files.map((file: any) => ({
-                name: file.name,
-                type: file.type,
-                size: file.size,
-                uri: '', // Will be handled differently on web
-                webFile: file, // Store the actual File object for web
-              }));
-              console.log('[UploadScreen] Adding files to pending list:', newFiles.map(f => f.name));
-              setPendingFiles(prev => [...prev, ...newFiles]);
-            }
-            setIsPickerActive(false);
-          };
-          input.click();
-        } else {
-          console.error('[UploadScreen] Web environment not available');
-          showAlert('Error', 'File picker not available in this environment');
-          setIsPickerActive(false);
-        }
-        return;
-      }
-
-      if (!DocumentPicker) {
-        console.error('[UploadScreen] DocumentPicker not available');
-        showAlert('Error', 'Document picker not available on this platform');
-        setIsPickerActive(false);
-        return;
-      }
-
-      console.log('[UploadScreen] Launching native document picker');
-      const result = await DocumentPicker.pickSingle({
-        type: [DocumentPicker.types.allFiles],
-      });
-      
-      console.log('[UploadScreen] Document picker result:', {
-        uri: result.uri,
-        name: result.name,
-        type: result.type,
-        size: result.size
-      });
-      
-      setPendingFiles(prev => [...prev, {
-        uri: result.uri,
-        name: result.name || 'unknown',
-        type: result.type || 'application/octet-stream',
-      }]);
-      
-      console.log('[UploadScreen] Document added to pending files');
-    } catch (error) {
-      console.log('[UploadScreen] Document picker error or cancellation:', error);
-      if (DocumentPicker && DocumentPicker.isCancel && DocumentPicker.isCancel(error)) {
-        console.log('[UploadScreen] User cancelled document picker');
-      } else {
-        console.error('[UploadScreen] DocumentPicker Error:', error);
-        showAlert('Error', 'Failed to pick document');
-      }
-    } finally {
-      setIsPickerActive(false);
-      console.log('[UploadScreen] Set picker active to false');
-    }
-  };
 
   const handleImagePicker = () => {
     // Debug log to check platform detection
@@ -802,15 +714,6 @@ const UploadScreen = () => {
   };
 
   const uploadOptions = [
-    {
-      id: 'document',
-      title: 'Documents',
-      subtitle: 'Upload PDFs, text files, and other documents',
-      icon: 'description',
-      color: '#007AFF',
-      onPress: handleDocumentPicker,
-      disabled: false,
-    },
     {
       id: 'image',
       title: 'Images',

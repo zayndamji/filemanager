@@ -196,11 +196,6 @@ const FileListScreen = () => {
         return 'video-library';
       case 'audio':
         return 'music-note';
-      case 'application':
-        if (type.includes('pdf')) return 'picture-as-pdf';
-        return 'description';
-      case 'text':
-        return 'text-snippet';
       default:
         return 'insert-drive-file';
     }
