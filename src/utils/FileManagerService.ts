@@ -1203,9 +1203,25 @@ export class FileManagerService {
         const uuid = fileName.replace('.metadata.enc', '');
         try {
           await this.loadFileMetadata(uuid, derivedKey);
+          
+          // Delete regular files
           try { await FileSystem.unlink(`${uuid}.enc`); } catch {}
           try { await FileSystem.unlink(`${uuid}.metadata.enc`); } catch {}
           try { await FileSystem.unlink(`${uuid}.preview.enc`); } catch {}
+          
+          // Delete video chunk files if they exist
+          const chunkFiles = files.filter((file: string) => {
+            return file.startsWith(`${uuid}.`) && file.includes('.chunk.enc');
+          });
+          for (const chunkFile of chunkFiles) {
+            try {
+              await FileSystem.unlink(chunkFile);
+              console.log(`[FileManagerService] Deleted chunk: ${chunkFile}`);
+            } catch (chunkError) {
+              console.warn(`[FileManagerService] Failed to delete chunk ${chunkFile}:`, chunkError);
+            }
+          }
+          
           deletedCount++;
         } catch (e) {
           continue;
@@ -1222,9 +1238,31 @@ export class FileManagerService {
           const filePath = this.getFilePath(uuid, 'file');
           const metadataPath = this.getFilePath(uuid, 'metadata');
           const previewPath = this.getFilePath(uuid, 'preview');
+          
+          // Delete regular files
           if (await FileSystem.exists(filePath)) await FileSystem.unlink(filePath);
           if (await FileSystem.exists(metadataPath)) await FileSystem.unlink(metadataPath);
           if (await FileSystem.exists(previewPath)) await FileSystem.unlink(previewPath);
+          
+          // Delete video chunk files if they exist
+          const chunkFiles = files.filter((file: any) => {
+            const fileName = file.name || file;
+            return fileName.startsWith(`${uuid}.`) && fileName.includes('.chunk.enc');
+          });
+          for (const chunkFile of chunkFiles) {
+            try {
+              const fileName = chunkFile.name || chunkFile;
+              const chunkPath = this.getDocumentsPath() + '/' + fileName;
+              if (await FileSystem.exists(chunkPath)) {
+                await FileSystem.unlink(chunkPath);
+                console.log(`[FileManagerService] Deleted chunk: ${fileName}`);
+              }
+            } catch (chunkError) {
+              const fileName = chunkFile.name || chunkFile;
+              console.warn(`[FileManagerService] Failed to delete chunk ${fileName}:`, chunkError);
+            }
+          }
+          
           deletedCount++;
         } catch (e) {
           continue;

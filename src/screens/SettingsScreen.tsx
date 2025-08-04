@@ -379,14 +379,34 @@ const SettingsScreen = () => {
                     try {
                       await FileSystem.deleteFile(fileName);
                       deletedCount++;
+                      
+                      // Delete regular file
                       try {
                         await FileSystem.deleteFile(`${uuid}.enc`);
                         deletedCount++;
                       } catch (e) { /* ignore if doesn't exist */ }
+                      
+                      // Delete preview file
                       try {
                         await FileSystem.deleteFile(`${uuid}.preview.enc`);
                         deletedCount++;
                       } catch (e) { /* ignore if doesn't exist */ }
+                      
+                      // Delete video chunk files if they exist
+                      const chunkFiles = files.filter((chunkFile: any) => {
+                        const chunkFileName = typeof chunkFile === 'string' ? chunkFile : chunkFile.name;
+                        return chunkFileName.startsWith(`${uuid}.`) && chunkFileName.includes('.chunk.enc');
+                      });
+                      for (const chunkFile of chunkFiles) {
+                        try {
+                          const chunkFileName = typeof chunkFile === 'string' ? chunkFile : chunkFile.name;
+                          await FileSystem.deleteFile(chunkFileName);
+                          deletedCount++;
+                          console.log(`[SettingsScreen] Deleted corrupted chunk: ${chunkFileName}`);
+                        } catch (chunkError) {
+                          console.warn(`[SettingsScreen] Failed to delete corrupted chunk:`, chunkError);
+                        }
+                      }
                     } catch (deleteErr) {
                       console.warn('Failed to delete corrupted file:', fileName, deleteErr);
                     }
