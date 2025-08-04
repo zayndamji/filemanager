@@ -22,6 +22,14 @@ export interface FileMetadata {
   uuid: string;
   encryptedAt: string;
   version: string;
+  // Optional fields for ImageSet support
+  parentImageSet?: string; // UUID of parent ImageSet (for individual images in a set)
+  imageSetImages?: Array<{ // List of images in ImageSet (for ImageSet files)
+    uuid: string;
+    name: string;
+    mimeType: string;
+    size: number;
+  }>;
 }
 
 export interface EncryptedFile {
@@ -363,6 +371,159 @@ export class FileManagerService {
       filePath: `${uuid}.chunks`, // Indicate this is a chunked video (logical reference)
       metadataPath,
       previewPath: undefined, // No preview for chunked videos
+      isEncrypted: true
+    };
+  }
+
+  // saves an encrypted ImageSet to the file system
+  static async saveEncryptedImageSet(
+    images: Array<{ name: string; data: Uint8Array; mimeType: string }>,
+    imageSetName: string,
+    key: Uint8Array,
+    folderPath: string[] = [],
+    tags: string[] = []
+  ): Promise<EncryptedFile> {
+    const start = Date.now();
+    this.checkKey(key, 'saveEncryptedImageSet');
+    
+    // Generate UUID for this ImageSet
+    const imageSetUuid = EncryptionUtils.generateUUID();
+    console.log('[FileManagerService] saveEncryptedImageSet: START', { uuid: imageSetUuid, imageSetName, imageCount: images.length });
+
+    // Process each image individually and store as separate encrypted files
+    const imageRefs: Array<{
+      uuid: string;
+      name: string;
+      mimeType: string;
+      size: number;
+    }> = [];
+
+    for (let i = 0; i < images.length; i++) {
+      const image = images[i];
+      console.log(`[FileManagerService] Processing image ${i + 1}/${images.length}: ${image.name}`);
+      
+      // Generate UUID for this individual image
+      const imageUuid = EncryptionUtils.generateUUID();
+      
+      // Create metadata for this individual image
+      const imageMetadata: FileMetadata = {
+        name: image.name,
+        type: image.mimeType,
+        size: image.data.length,
+        folderPath,
+        tags: [...tags, `imageset:${imageSetName}`], // Add ImageSet tag
+        uuid: imageUuid,
+        encryptedAt: new Date().toISOString(),
+        version: '2.0',
+        parentImageSet: imageSetUuid // Reference to parent ImageSet
+      };
+
+      // Encrypt the image data
+      const encryptedImage = await EncryptionUtils.encryptData(image.data, key);
+
+      // Generate and encrypt preview data
+      let encryptedPreview: Uint8Array | null = null;
+      try {
+        const previewData = await EncryptionUtils.createImagePreview(image.data, image.mimeType);
+        if (previewData) {
+          encryptedPreview = await EncryptionUtils.encryptData(previewData, key);
+        }
+      } catch (error) {
+        console.warn(`[FileManagerService] Failed to generate preview for ${image.name}:`, error);
+      }
+
+      // Encrypt metadata
+      const metadataString = JSON.stringify(imageMetadata);
+      const metadataBuffer = new TextEncoder().encode(metadataString);
+      const encryptedMetadata = await EncryptionUtils.encryptData(metadataBuffer, key);
+
+      // Write encrypted image as base64
+      const imageBase64 = uint8ArrayToBase64(encryptedImage);
+      await FileSystem.writeFile(`${imageUuid}.enc`, imageBase64, 'base64');
+
+      // Write encrypted preview as base64 (if available)
+      if (encryptedPreview) {
+        const previewBase64 = uint8ArrayToBase64(encryptedPreview);
+        await FileSystem.writeFile(`${imageUuid}.preview.enc`, previewBase64, 'base64');
+      }
+
+      // Write encrypted metadata as base64
+      const metadataBase64 = uint8ArrayToBase64(encryptedMetadata);
+      await FileSystem.writeFile(`${imageUuid}.metadata.enc`, metadataBase64, 'base64');
+
+      // Add to image references
+      imageRefs.push({
+        uuid: imageUuid,
+        name: image.name,
+        mimeType: image.mimeType,
+        size: image.data.length
+      });
+
+      console.log(`[FileManagerService] Saved image ${i + 1}/${images.length}: ${imageUuid}`);
+    }
+
+    // Calculate total size (sum of all individual image sizes)
+    const totalSize = imageRefs.reduce((sum, ref) => sum + ref.size, 0);
+
+    // Create ImageSet metadata (contains references to individual images)
+    const imageSetMetadata: FileMetadata = {
+      name: imageSetName,
+      type: 'application/imageset', // Custom MIME type for ImageSet
+      size: totalSize, // Use the total uncompressed size
+      folderPath,
+      tags,
+      uuid: imageSetUuid,
+      encryptedAt: new Date().toISOString(),
+      version: '2.0',
+      imageSetImages: imageRefs // References to individual image files
+    };
+
+    // Create minimal ImageSet data (just metadata, no actual image data)
+    const imageSetData = {
+      metadata: {
+        name: imageSetName,
+        description: `Image set containing ${images.length} images`,
+        totalImages: images.length
+      },
+      imageRefs: imageRefs // References to individual encrypted files
+    };
+
+    // Convert ImageSet data to JSON and then to Uint8Array
+    const jsonString = JSON.stringify(imageSetData);
+    const imageSetBytes = new TextEncoder().encode(jsonString);
+
+    // Encrypt the ImageSet data
+    const encryptedImageSet = await EncryptionUtils.encryptData(imageSetBytes, key);
+
+    // Encrypt metadata
+    const metadataString = JSON.stringify(imageSetMetadata);
+    const metadataBuffer = new TextEncoder().encode(metadataString);
+    const encryptedMetadata = await EncryptionUtils.encryptData(metadataBuffer, key);
+
+    // Write encrypted ImageSet as base64
+    const imageSetBase64 = uint8ArrayToBase64(encryptedImageSet);
+    await FileSystem.writeFile(`${imageSetUuid}.enc`, imageSetBase64, 'base64');
+
+    // Write encrypted metadata as base64
+    const metadataBase64 = uint8ArrayToBase64(encryptedMetadata);
+    await FileSystem.writeFile(`${imageSetUuid}.metadata.enc`, metadataBase64, 'base64');
+
+    const end = Date.now();
+    console.log('[FileManagerService] saveEncryptedImageSet: END', { 
+      uuid: imageSetUuid, 
+      imageCount: images.length,
+      totalSize,
+      individualImages: imageRefs.length,
+      durationMs: end - start, 
+      timestamp: end 
+    });
+
+    return {
+      uuid: imageSetUuid,
+      metadata: imageSetMetadata,
+      filePath: this.getFilePath(imageSetUuid, 'file'),
+      metadataPath: this.getFilePath(imageSetUuid, 'metadata'),
+      previewPath: undefined,
       isEncrypted: true
     };
   }

@@ -37,6 +37,16 @@ export const useFileManagerService = () => {
       return FileManagerService.saveEncryptedVideoChunked(fileData, originalFileName, mimeType, key, folderPath, tags);
     },
 
+    saveEncryptedImageSet: async (
+      images: Array<{ name: string; data: Uint8Array; mimeType: string }>,
+      imageSetName: string,
+      folderPath: string[] = [],
+      tags: string[] = []
+    ): Promise<EncryptedFile> => {
+      const key = checkDerivedKey();
+      return FileManagerService.saveEncryptedImageSet(images, imageSetName, key, folderPath, tags);
+    },
+
     loadEncryptedFile: async (
       uuid: string,
       abortSignal?: AbortSignal,

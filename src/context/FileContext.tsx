@@ -69,8 +69,19 @@ export function FileProvider({ children }: FileProviderProps) {
     console.log('[FileContext] Refreshing encrypted file list...');
     setLoading(true);
     try {
-      const files = await fileManagerService.listEncryptedFiles();
-      setEncryptedFiles(files);
+      const allFiles = await fileManagerService.listEncryptedFiles();
+      
+      // Filter out individual ImageSet images (they have parentImageSet in metadata)
+      // Only keep files that are NOT individual images from ImageSets
+      const mainFiles = allFiles.filter(file => !file.metadata.parentImageSet);
+      
+      console.log('[FileContext] Filtered files:', {
+        totalFiles: allFiles.length,
+        mainFiles: mainFiles.length,
+        filteredOut: allFiles.length - mainFiles.length
+      });
+      
+      setEncryptedFiles(mainFiles);
     } catch (error) {
       console.error('Error refreshing file list:', error);
       setEncryptedFiles([]);

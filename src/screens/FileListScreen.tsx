@@ -189,6 +189,9 @@ const FileListScreen = () => {
   };
 
   const getFileIcon = (type: string) => {
+    if (type === 'application/imageset') {
+      return 'collections'; // Material icon for image collections
+    }
     switch (type.toLowerCase().split('/')[0]) {
       case 'image':
         return 'image';

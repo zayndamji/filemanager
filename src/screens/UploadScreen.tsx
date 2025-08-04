@@ -572,6 +572,125 @@ const UploadScreen = () => {
     }
   };
 
+  const handleImageSetPicker = () => {
+    console.log('[UploadScreen] handleImageSetPicker called, Platform.OS:', Platform.OS, 'isPickerActive:', isPickerActive);
+    
+    // Prevent multiple concurrent picker operations
+    if (isPickerActive) {
+      console.log('[UploadScreen] Picker already active, ignoring image set picker request');
+      return;
+    }
+
+    try {
+      setIsPickerActive(true);
+      console.log('[UploadScreen] Set image set picker active to true');
+
+      if (Platform.OS === 'web') {
+        console.log('[UploadScreen] Using web file picker for image set');
+        const win: any = (global as any).window || (global as any);
+        if (win && win.document) {
+          const input = win.document.createElement('input');
+          input.type = 'file';
+          input.accept = 'image/*';
+          input.multiple = true;
+          input.onchange = async (event: any) => {
+            console.log('[UploadScreen] Web image set picker onChange triggered');
+            const files = Array.from(event.target.files || []);
+            console.log('[UploadScreen] Selected image files count for set:', files.length);
+            
+            if (files.length > 0) {
+              // Create a single ImageSet entry instead of individual files
+              const imageSetName = `ImageSet_${new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-')}`;
+              const imageSetFile = {
+                name: imageSetName,
+                type: 'application/imageset',
+                size: (files as any[]).reduce((total, file) => total + file.size, 0),
+                uri: '',
+                isImageSet: true,
+                imageFiles: files as File[], // Store the actual File objects
+              };
+              
+              console.log('[UploadScreen] Creating ImageSet:', imageSetName, 'with', files.length, 'images');
+              setPendingFiles(prev => [...prev, imageSetFile]);
+            }
+            setIsPickerActive(false);
+            console.log('[UploadScreen] Web image set picker completed, set active to false');
+          };
+          input.click();
+        } else {
+          console.error('[UploadScreen] Web environment not available for image set picker');
+          showAlert('Error', 'File picker not available in this environment');
+          setIsPickerActive(false);
+        }
+        return;
+      }
+
+      // For native platforms, use image picker with multiple selection
+      console.log('[UploadScreen] Using native image picker for image set, launchImageLibrary available:', !!launchImageLibrary);
+      
+      if (!launchImageLibrary) {
+        console.error('[UploadScreen] launchImageLibrary not available for image set');
+        showAlert('Error', 'Image picker not available on this platform');
+        setIsPickerActive(false);
+        return;
+      }
+
+      const options = {
+        mediaType: 'photo' as const,
+        quality: 0.8,
+        includeBase64: false,
+        maxWidth: 2048,
+        maxHeight: 2048,
+        selectionLimit: 0, // Allow multiple selection
+      };
+
+      console.log('[UploadScreen] Launching native image set picker with options:', options);
+      launchImageLibrary(options, (response: any) => {
+        console.log('[UploadScreen] Native image set picker response:', response);
+        
+        if (response.didCancel) {
+          console.log('[UploadScreen] User cancelled image set picker');
+          setIsPickerActive(false);
+          return;
+        }
+        
+        if (response.errorMessage) {
+          console.error('[UploadScreen] Image set picker error:', response.errorMessage);
+          showAlert('Error', 'Failed to pick images: ' + response.errorMessage);
+          setIsPickerActive(false);
+          return;
+        }
+        
+        const selectedAssets = response.assets || [];
+        console.log('[UploadScreen] Selected assets for image set:', selectedAssets.length);
+        
+        if (selectedAssets.length > 0) {
+          // Create a single ImageSet entry instead of individual files
+          const imageSetName = `ImageSet_${new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-')}`;
+          const imageSetFile = {
+            name: imageSetName,
+            type: 'application/imageset',
+            size: selectedAssets.reduce((total: number, asset: any) => total + (asset.fileSize || 0), 0),
+            uri: '',
+            isImageSet: true,
+            imageAssets: selectedAssets, // Store the native assets
+          };
+          
+          console.log('[UploadScreen] Creating native ImageSet:', imageSetName, 'with', selectedAssets.length, 'images');
+          setPendingFiles(prev => [...prev, imageSetFile]);
+        }
+        
+        setIsPickerActive(false);
+        console.log('[UploadScreen] Native image set picker completed, set active to false');
+      });
+      
+    } catch (error) {
+      console.error('[UploadScreen] Error launching image set picker:', error);
+      showAlert('Error', 'Failed to launch image set picker');
+      setIsPickerActive(false);
+    }
+  };
+
   const encryptAndSaveAllFiles = async () => {
     console.log('[UploadScreen] encryptAndSaveAllFiles started, pendingFiles count:', pendingFiles.length);
     
@@ -596,6 +715,68 @@ const UploadScreen = () => {
           hasWebFile: !!file.webFile,
           platform: Platform.OS
         });
+
+        // Check if this is an ImageSet file
+        if ((file as any).isImageSet) {
+          console.log(`[UploadScreen] Processing ImageSet: ${file.name}`);
+          
+          // Process individual images in the ImageSet
+          const images: Array<{ name: string; data: Uint8Array; mimeType: string }> = [];
+          
+          if ((Platform as any).OS === 'web' && (file as any).imageFiles) {
+            // Web: process File objects
+            const imageFiles = (file as any).imageFiles as File[];
+            for (let j = 0; j < imageFiles.length; j++) {
+              const imageFile = imageFiles[j];
+              try {
+                const arrayBuffer = await imageFile.arrayBuffer();
+                const imageData = new Uint8Array(arrayBuffer);
+                images.push({
+                  name: imageFile.name,
+                  data: imageData,
+                  mimeType: imageFile.type
+                });
+                console.log(`[UploadScreen] Processed image ${j + 1}/${imageFiles.length}: ${imageFile.name}`);
+              } catch (error) {
+                console.error(`[UploadScreen] Failed to process image ${imageFile.name}:`, error);
+              }
+            }
+          } else if ((file as any).imageAssets) {
+            // Native: process asset objects
+            const imageAssets = (file as any).imageAssets as any[];
+            for (let j = 0; j < imageAssets.length; j++) {
+              const asset = imageAssets[j];
+              try {
+                if (RNFS && asset.uri) {
+                  const base64 = await RNFS.readFile(asset.uri, 'base64');
+                  const imageData = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+                  images.push({
+                    name: asset.fileName || `image_${j + 1}.jpg`,
+                    data: imageData,
+                    mimeType: asset.type || 'image/jpeg'
+                  });
+                  console.log(`[UploadScreen] Processed asset ${j + 1}/${imageAssets.length}: ${asset.fileName}`);
+                }
+              } catch (error) {
+                console.error(`[UploadScreen] Failed to process asset ${asset.fileName}:`, error);
+              }
+            }
+          }
+          
+          if (images.length > 0) {
+            console.log(`[UploadScreen] Saving ImageSet with ${images.length} images`);
+            const savedMetadata = await fileManagerService.saveEncryptedImageSet(
+              images,
+              file.name,
+              metaEditor.folderPath.split('/').filter(Boolean),
+              metaEditor.tags
+            );
+            console.log(`[UploadScreen] Successfully saved ImageSet: ${file.name}`);
+          } else {
+            console.error(`[UploadScreen] No valid images found in ImageSet: ${file.name}`);
+          }
+          continue; // Skip the regular file processing
+        }
 
         // Read file data using cross-platform approach
         let fileData: Uint8Array;
@@ -724,6 +905,15 @@ const UploadScreen = () => {
       disabled: false,
     },
     {
+      id: 'imageset',
+      title: 'Image Set',
+      subtitle: 'Upload multiple images as a collection',
+      icon: 'collections',
+      color: '#007AFF',
+      onPress: handleImageSetPicker,
+      disabled: false,
+    },
+    {
       id: 'video',
       title: 'Videos',
       subtitle: Platform.OS === 'web' ? 'Upload video files (web only)' : 'Video upload not supported on mobile',
@@ -792,13 +982,26 @@ const UploadScreen = () => {
             {/* Folder path preview now handled inside MetadataEditor */}
             <View style={styles.pendingFilesContainer}>
               <Text style={styles.pendingFilesTitle}>Files to upload:</Text>
-              {pendingFiles.map((file, idx) => (
-                <View key={file.uri + idx} style={styles.pendingFileRow}>
-                  <WebCompatibleIcon name="insert-drive-file" size={20} color={theme.accent} />
-                  <Text style={styles.pendingFileName}>{file.name}</Text>
-                  <Text style={styles.pendingFileType}>{file.type}</Text>
-                </View>
-              ))}
+              {pendingFiles.map((file, idx) => {
+                const isImageSet = (file as any).isImageSet;
+                const imageCount = isImageSet 
+                  ? ((file as any).imageFiles?.length || (file as any).imageAssets?.length || 0)
+                  : 0;
+                
+                return (
+                  <View key={file.uri + idx} style={styles.pendingFileRow}>
+                    <WebCompatibleIcon 
+                      name={isImageSet ? "collections" : "insert-drive-file"} 
+                      size={20} 
+                      color={theme.accent} 
+                    />
+                    <Text style={styles.pendingFileName}>{file.name}</Text>
+                    <Text style={styles.pendingFileType}>
+                      {isImageSet ? `ImageSet (${imageCount} images)` : file.type}
+                    </Text>
+                  </View>
+                );
+              })}
               <TouchableOpacity
                 style={styles.uploadAllButton}
                 onPress={encryptAndSaveAllFiles}

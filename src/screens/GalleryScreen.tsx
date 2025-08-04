@@ -26,6 +26,22 @@ import SortDropdown from '../components/SortDropdown';
 import { ThemeContext } from '../theme';
 import { showAlert } from '../utils/AlertUtils';
 
+// Interface for expanded image items (individual images from ImageSets)
+interface ExpandedImageItem {
+  uuid: string; // Original file UUID (for ImageSet) or individual image UUID
+  imageIndex?: number; // Index within ImageSet (undefined for regular images)
+  metadata: {
+    name: string;
+    type: string;
+    size: number;
+    tags: string[];
+    encryptedAt: string;
+  };
+  isImageSet: boolean;
+  originalFile: EncryptedFile; // Reference to the original file
+  imageUuid?: string; // UUID of individual image file (for new ImageSet format)
+}
+
 const { width } = Dimensions.get('window');
 
 // Responsive column calculation
@@ -248,6 +264,9 @@ const GalleryScreen = () => {
   const [tagSearch, setTagSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0); // For ImageSet initial position
+  const [expandedImages, setExpandedImages] = useState<ExpandedImageItem[]>([]);
+  const [expandedImageData, setExpandedImageData] = useState<Map<string, any>>(new Map()); // Cache for ImageSet data
   const [screenData, setScreenData] = useState(() => {
     const { width } = Dimensions.get('window');
     const cols = getNumColumns(width);
@@ -298,14 +317,174 @@ const GalleryScreen = () => {
     }
   };
 
-  useEffect(() => {
-    const images = encryptedFiles.filter(file => {
-      return file.metadata.type.startsWith('image/');
+  // Function to expand ImageSets into individual images
+  const expandImageSets = async (files: EncryptedFile[]): Promise<ExpandedImageItem[]> => {
+    const expandedItems: ExpandedImageItem[] = [];
+    
+    for (const file of files) {
+      if (file.metadata.type === 'application/imageset') {
+        // For ImageSet containers, find their individual images
+        const imageSetImages = files.filter(f => f.metadata.parentImageSet === file.uuid);
+        
+        if (imageSetImages.length > 0) {
+          // Sort the individual images the same way as in ImageSet component
+          const sortedImageSetImages = sortImageFiles(imageSetImages, sortBy);
+          
+          // Use the individual image files directly (new format)
+          console.log('[GalleryScreen] Found', imageSetImages.length, 'individual images for ImageSet:', file.uuid);
+          sortedImageSetImages.forEach((imageFile, index) => {
+            expandedItems.push({
+              uuid: imageFile.uuid, // Use the actual individual image UUID
+              imageIndex: index,
+              metadata: {
+                name: imageFile.metadata.name,
+                type: imageFile.metadata.type,
+                size: imageFile.metadata.size,
+                tags: file.metadata.tags, // Use ImageSet tags
+                encryptedAt: imageFile.metadata.encryptedAt,
+              },
+              isImageSet: true,
+              originalFile: file, // Keep reference to ImageSet container
+              imageUuid: imageFile.uuid // Store the individual image UUID for loading
+            });
+          });
+        } else {
+          // Fallback for old ImageSet format - load and parse the data
+          console.log('[GalleryScreen] No individual images found, loading old format ImageSet:', file.uuid);
+          if (!expandedImageData.has(file.uuid)) {
+            try {
+              // Load and parse the ImageSet data
+              const result = await fileManagerService.loadEncryptedFile(file.uuid);
+              const jsonString = new TextDecoder().decode(result.fileData);
+              const imageSetData = JSON.parse(jsonString);
+              
+              // Cache the data
+              const newExpandedImageData = new Map(expandedImageData);
+              newExpandedImageData.set(file.uuid, imageSetData);
+              setExpandedImageData(newExpandedImageData);
+              
+              // Add individual images from this ImageSet
+              if (imageSetData.images) {
+                imageSetData.images.forEach((img: any, index: number) => {
+                  expandedItems.push({
+                    uuid: `${file.uuid}_${index}`, // Virtual UUID for old format
+                    imageIndex: index,
+                    metadata: {
+                      name: img.name,
+                      type: img.mimeType,
+                      size: 0,
+                      tags: file.metadata.tags,
+                      encryptedAt: file.metadata.encryptedAt,
+                    },
+                    isImageSet: true,
+                    originalFile: file
+                  });
+                });
+              }
+            } catch (error) {
+              console.error('[GalleryScreen] Failed to load old ImageSet:', file.uuid, error);
+              // Add as a single item if parsing fails
+              expandedItems.push({
+                uuid: file.uuid,
+                metadata: file.metadata,
+                isImageSet: true,
+                originalFile: file
+              });
+            }
+          } else {
+            // Use cached data for old format
+            const imageSetData = expandedImageData.get(file.uuid);
+            if (imageSetData && imageSetData.images) {
+              imageSetData.images.forEach((img: any, index: number) => {
+                expandedItems.push({
+                  uuid: `${file.uuid}_${index}`,
+                  imageIndex: index,
+                  metadata: {
+                    name: img.name,
+                    type: img.mimeType,
+                    size: 0,
+                    tags: file.metadata.tags,
+                    encryptedAt: file.metadata.encryptedAt,
+                  },
+                  isImageSet: true,
+                  originalFile: file
+                });
+              });
+            }
+          }
+        }
+      } else if (file.metadata.parentImageSet) {
+        // Skip individual ImageSet images here - they're handled above
+        console.log('[GalleryScreen] Skipping individual ImageSet image:', file.uuid, 'parent:', file.metadata.parentImageSet);
+        continue;
+      } else {
+        // Regular image file
+        expandedItems.push({
+          uuid: file.uuid,
+          metadata: file.metadata,
+          isImageSet: false,
+          originalFile: file
+        });
+      }
+    }
+    
+    console.log('[GalleryScreen] expandImageSets completed:', {
+      inputFiles: files.length,
+      outputItems: expandedItems.length,
+      breakdown: expandedItems.reduce((acc, item) => {
+        const type = item.isImageSet ? 'imageset-item' : 'regular-image';
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>)
     });
-    const sortedImages = sortImageFiles(images, sortBy);
-    setImageFiles(sortedImages);
-    loadThumbnails(sortedImages);
-  }, [encryptedFiles, sortBy]);
+    
+    return expandedItems;
+  };
+
+  useEffect(() => {
+    const loadAllImageFiles = async () => {
+      try {
+        // Get all files including individual ImageSet images
+        const allFiles = await fileManagerService.listEncryptedFiles();
+        
+        // Filter for images (individual images + ImageSet containers)
+        const images = allFiles.filter(file => {
+          return file.metadata.type.startsWith('image/') || file.metadata.type === 'application/imageset';
+        });
+        
+        console.log('[GalleryScreen] All image files loaded:', {
+          totalFiles: allFiles.length,
+          imageFiles: images.length,
+          breakdown: images.reduce((acc, file) => {
+            const type = file.metadata.type === 'application/imageset' ? 'imageset' : 
+                       file.metadata.parentImageSet ? 'imageset-image' : 'regular-image';
+            acc[type] = (acc[type] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>)
+        });
+        
+        const sortedImages = sortImageFiles(images, sortBy);
+        setImageFiles(sortedImages);
+        
+        // Expand ImageSets and set expanded images
+        expandImageSets(sortedImages).then(expanded => {
+          setExpandedImages(expanded);
+        });
+      } catch (error) {
+        console.error('[GalleryScreen] Failed to load image files:', error);
+      }
+    };
+    
+    loadAllImageFiles();
+  }, [sortBy, expandedImageData]); // Removed encryptedFiles dependency since we load all files directly
+
+  // Trigger initial thumbnail loading when expandedImages is populated
+  React.useEffect(() => {
+    if (expandedImages.length > 0 && imageFiles.length > 0) {
+      console.log('[GalleryScreen] Triggering initial thumbnail loading for', expandedImages.length, 'expanded images');
+      loadThumbnails(imageFiles);
+    }
+  }, [expandedImages.length, imageFiles.length]);
 
   // Listen for screen dimension changes
   useEffect(() => {
@@ -333,19 +512,38 @@ const GalleryScreen = () => {
 
   // Lazy load individual thumbnails for visible items with optional background processing
   const loadThumbnail = useCallback(async (image: EncryptedFile, useBackground = false) => {
+    console.log('[GalleryScreen] loadThumbnail called for:', {
+      uuid: image.uuid,
+      name: image.metadata.name,
+      type: image.metadata.type,
+      useBackground,
+      currentlyHasThumbnail: thumbnailsRef.current.has(image.uuid),
+      currentlyLoading: loadingThumbnailsRef.current.has(image.uuid)
+    });
+    
     if (thumbnailsRef.current.has(image.uuid) || loadingThumbnailsRef.current.has(image.uuid)) {
+      console.log('[GalleryScreen] Skipping loadThumbnail - already exists or loading');
       return;
     }
 
     const newLoadingThumbnails = new Set(loadingThumbnailsRef.current);
     newLoadingThumbnails.add(image.uuid);
     setLoadingThumbnails(newLoadingThumbnails);
+    console.log('[GalleryScreen] Set loading state for:', image.uuid);
 
     const doLoad = async () => {
       try {
         const thumbStart = Date.now();
-        // Load preview only - no fallback to full image for performance
+        console.log('[GalleryScreen] Starting getFilePreview for:', image.uuid);
+        
+        // For individual images (including those from ImageSets), load preview directly
         const imageData = await fileManagerService.getFilePreview(image.uuid);
+        console.log('[GalleryScreen] getFilePreview result:', {
+          uuid: image.uuid,
+          hasData: !!imageData,
+          dataLength: imageData?.length
+        });
+        
         if (imageData) {
           const base64String = uint8ArrayToBase64(imageData);
           const dataUri = `data:${image.metadata.type};base64,${base64String}`;
@@ -362,11 +560,14 @@ const GalleryScreen = () => {
               }
             }
             
+            console.log('[GalleryScreen] Thumbnail stored for:', image.uuid, 'total thumbnails:', newThumbnails.size);
             return newThumbnails;
           });
           
           const thumbEnd = Date.now();
           console.log('[GalleryScreen] Loaded thumbnail for', { uuid: image.uuid, durationMs: thumbEnd - thumbStart, timestamp: thumbEnd });
+        } else {
+          console.warn('[GalleryScreen] No preview data returned for:', image.uuid);
         }
       } catch (error) {
         console.warn('[GalleryScreen] Failed to load thumbnail for', image.metadata.name, error);
@@ -374,6 +575,7 @@ const GalleryScreen = () => {
         setLoadingThumbnails(prev => {
           const newSet = new Set(prev);
           newSet.delete(image.uuid);
+          console.log('[GalleryScreen] Cleared loading state for:', image.uuid);
           return newSet;
         });
       }
@@ -393,15 +595,60 @@ const GalleryScreen = () => {
   // Handle viewable items changed with minimal debouncing for responsiveness
   // Use refs to avoid recreating the callback and causing FlatList errors
   const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: any[] }) => {
+    console.log('[GalleryScreen] onViewableItemsChanged called with', viewableItems.length, 'items');
     const newVisibleItems = new Set(viewableItems.map(item => item.item.uuid));
     setVisibleItems(newVisibleItems);
     
     // Very minimal debounce to avoid excessive calls but stay highly responsive
     setTimeout(() => {
       viewableItems.forEach(({ item }) => {
+        // Use individual image UUID for new ImageSet format, or original file UUID for regular images and old ImageSets
+        const thumbnailKey = item.imageUuid || item.originalFile.uuid;
+        
+        console.log('[GalleryScreen] Processing viewable item:', {
+          itemUuid: item.uuid,
+          thumbnailKey,
+          imageUuid: item.imageUuid,
+          isImageSet: item.isImageSet,
+          imageIndex: item.imageIndex,
+          hasThumbnail: thumbnailsRef.current.has(thumbnailKey),
+          isLoading: loadingThumbnailsRef.current.has(thumbnailKey),
+          hasLoadFunction: !!loadThumbnailRef.current
+        });
+        
         // Check current state using refs to avoid stale closures
-        if (!thumbnailsRef.current.has(item.uuid) && !loadingThumbnailsRef.current.has(item.uuid) && loadThumbnailRef.current) {
-          loadThumbnailRef.current(item);
+        if (!thumbnailsRef.current.has(thumbnailKey) && !loadingThumbnailsRef.current.has(thumbnailKey) && loadThumbnailRef.current) {
+          console.log('[GalleryScreen] Starting thumbnail load for:', thumbnailKey);
+          
+          // For new ImageSet format, create individual image file reference
+          if (item.imageUuid) {
+            const individualImageFile: EncryptedFile = {
+              uuid: item.imageUuid,
+              metadata: {
+                name: item.metadata.name,
+                type: item.metadata.type,
+                size: item.metadata.size,
+                folderPath: item.originalFile.metadata.folderPath,
+                tags: item.metadata.tags,
+                uuid: item.imageUuid,
+                encryptedAt: item.metadata.encryptedAt,
+                version: '2.0'
+              },
+              filePath: '',
+              metadataPath: '',
+              isEncrypted: true
+            };
+            loadThumbnailRef.current(individualImageFile);
+          } else {
+            // Fallback to original file for old format
+            loadThumbnailRef.current(item.originalFile);
+          }
+        } else {
+          console.log('[GalleryScreen] Skipping thumbnail load for:', thumbnailKey, {
+            alreadyHasThumbnail: thumbnailsRef.current.has(thumbnailKey),
+            alreadyLoading: loadingThumbnailsRef.current.has(thumbnailKey),
+            noLoadFunction: !loadThumbnailRef.current
+          });
         }
       });
     }, 25); // Reduced to 25ms debounce for maximum responsiveness
@@ -413,17 +660,60 @@ const GalleryScreen = () => {
     waitForInteraction: false, // Don't wait - load immediately when visible
   };
 
-  // Simplified initial load - don't load ANY thumbnails initially for fastest startup
+  // Simplified initial load - load thumbnails for first few visible items to kickstart the gallery
   const loadThumbnails = async (images: EncryptedFile[]) => {
-    // Do nothing - all thumbnails will be loaded lazily when they become visible
-    console.log('[GalleryScreen] Lazy loading enabled for', images.length, 'images');
+    console.log('[GalleryScreen] Initial loading for first visible items from', images.length, 'total images');
+    
+    if (!loadThumbnailRef.current || expandedImages.length === 0) {
+      console.log('[GalleryScreen] No thumbnail function or expanded images available yet');
+      return;
+    }
+
+    // Load thumbnails for the first row of items (based on numColumns)
+    const initialLoadCount = Math.min(numColumns * 2, expandedImages.length); // Load 2 rows initially
+    
+    for (let i = 0; i < initialLoadCount; i++) {
+      const item = expandedImages[i];
+      const thumbnailKey = item.imageUuid || item.originalFile.uuid;
+      
+      // Skip if already loaded or loading
+      if (thumbnailsRef.current.has(thumbnailKey) || loadingThumbnailsRef.current.has(thumbnailKey)) {
+        continue;
+      }
+      
+      console.log('[GalleryScreen] Loading initial thumbnail for:', thumbnailKey);
+      
+      // For new ImageSet format, create individual image file reference
+      if (item.imageUuid) {
+        const individualImageFile: EncryptedFile = {
+          uuid: item.imageUuid,
+          metadata: {
+            name: item.metadata.name,
+            type: item.metadata.type,
+            size: item.metadata.size,
+            folderPath: item.originalFile.metadata.folderPath,
+            tags: item.metadata.tags,
+            uuid: item.imageUuid,
+            encryptedAt: item.metadata.encryptedAt,
+            version: '2.0'
+          },
+          filePath: '',
+          metadataPath: '',
+          isEncrypted: true
+        };
+        loadThumbnailRef.current(individualImageFile, true); // Use background loading for initial load
+      } else {
+        // Fallback to original file for old format
+        loadThumbnailRef.current(item.originalFile, true);
+      }
+    }
   };
 
-  // Get filtered images for navigation
-  const filteredImages = imageFiles.filter(file =>
+  // Get filtered expanded images for navigation
+  const filteredImages = expandedImages.filter(item =>
     selectedTags.length === 0
       ? true
-      : Array.isArray(file.metadata.tags) && selectedTags.every(tag => file.metadata.tags.includes(tag))
+      : Array.isArray(item.metadata.tags) && selectedTags.every(tag => item.metadata.tags.includes(tag))
   );
 
   // Navigation functions for gallery viewer
@@ -445,39 +735,62 @@ const GalleryScreen = () => {
     handleImagePress(prevImage);
   };
 
-  const handleImagePress = async (image: EncryptedFile) => {
+  const handleImagePress = async (expandedItem: ExpandedImageItem) => {
     // Set the current image index for navigation
-    const imageIndex = filteredImages.findIndex(img => img.uuid === image.uuid);
+    const imageIndex = filteredImages.findIndex(img => img.uuid === expandedItem.uuid);
     if (imageIndex >= 0) {
       setCurrentImageIndex(imageIndex);
     }
     
     try {
-      // For image files, try to load preview first for faster initial display
-      const previewData = await fileManagerService.getFilePreview(image.uuid);
-      if (previewData) {
-        setSelectedFile(image);
-        setFileData(previewData);
-        setIsPreviewData(true);
+      if (expandedItem.isImageSet && expandedItem.imageIndex !== undefined) {
+        // For ImageSet items, open the FileViewer with the ImageSet and specific image index
+        const result = await fileManagerService.loadEncryptedFile(expandedItem.originalFile.uuid);
+        setSelectedFile(expandedItem.originalFile);
+        setFileData(result.fileData);
+        setIsPreviewData(false);
+        setSelectedImageIndex(expandedItem.imageIndex); // Set the initial image index
         setViewerVisible(true);
-        return;
+      } else {
+        // Regular image file - try to load preview first for faster initial display
+        const previewData = await fileManagerService.getFilePreview(expandedItem.originalFile.uuid);
+        if (previewData) {
+          setSelectedFile(expandedItem.originalFile);
+          setFileData(previewData);
+          setIsPreviewData(true);
+          setViewerVisible(true);
+          return;
+        }
+        
+        // Fallback to loading full image if preview is not available
+        const result = await fileManagerService.loadEncryptedFile(expandedItem.originalFile.uuid);
+        setSelectedFile(expandedItem.originalFile);
+        setFileData(result.fileData);
+        setIsPreviewData(false);
+        setViewerVisible(true);
       }
-      
-      // Fallback to loading full image if preview is not available
-      const result = await fileManagerService.loadEncryptedFile(image.uuid);
-      setSelectedFile(image);
-      setFileData(result.fileData);
-      setIsPreviewData(false);
-      setViewerVisible(true);
     } catch (error) {
       console.error('Error loading image:', error);
       showAlert('Error', 'Failed to load image. Please check your password.');
     }
   };
 
-  const renderImageItem = useCallback(({ item }: { item: EncryptedFile }) => {
-    const thumbnailUri = thumbnails.get(item.uuid);
-    const isLoading = loadingThumbnails.has(item.uuid);
+  const renderImageItem = useCallback(({ item }: { item: ExpandedImageItem }) => {
+    // For thumbnails, use the individual image UUID for new ImageSet format, or original file UUID for regular images and old ImageSets
+    const thumbnailKey = item.imageUuid || item.originalFile.uuid;
+    
+    const thumbnailUri = thumbnails.get(thumbnailKey);
+    const isLoading = loadingThumbnails.has(thumbnailKey);
+    
+    console.log('[GalleryScreen] renderImageItem:', {
+      itemUuid: item.uuid,
+      thumbnailKey,
+      imageUuid: item.imageUuid,
+      hasThumbnail: !!thumbnailUri,
+      isLoading,
+      isImageSet: item.isImageSet,
+      imageIndex: item.imageIndex
+    });
     
     return (
       <TouchableOpacity
@@ -486,8 +799,33 @@ const GalleryScreen = () => {
           if (thumbnailUri) {
             handleImagePress(item);
           } else if (!isLoading) {
+            console.log('[GalleryScreen] Manual thumbnail load triggered for:', thumbnailKey);
             // Load thumbnail on tap if not already loading
-            loadThumbnail(item);
+            if (loadThumbnailRef.current) {
+              // For new ImageSet format, we need to create a mock EncryptedFile for the individual image
+              if (item.imageUuid) {
+                const individualImageFile: EncryptedFile = {
+                  uuid: item.imageUuid,
+                  metadata: {
+                    name: item.metadata.name,
+                    type: item.metadata.type,
+                    size: item.metadata.size,
+                    folderPath: item.originalFile.metadata.folderPath,
+                    tags: item.metadata.tags,
+                    uuid: item.imageUuid,
+                    encryptedAt: item.metadata.encryptedAt,
+                    version: '2.0'
+                  },
+                  filePath: '', // Will be resolved by FileManagerService
+                  metadataPath: '',
+                  isEncrypted: true
+                };
+                loadThumbnailRef.current(individualImageFile, false);
+              } else {
+                // Fallback to original file for old format
+                loadThumbnailRef.current(item.originalFile, false);
+              }
+            }
           }
         }}
       >
@@ -552,11 +890,17 @@ const GalleryScreen = () => {
         {/* Tag selector chips */}
         <View style={styles.tagSelectorRow}>
           {(() => {
-            // Collect all tags from imageFiles
+            // Collect all tags from expandedImages (avoiding duplicates)
             const allTags: string[] = [];
-            imageFiles.forEach(file => {
-              if (Array.isArray(file.metadata.tags)) {
-                allTags.push(...file.metadata.tags);
+            const seenTags = new Set<string>();
+            expandedImages.forEach(item => {
+              if (Array.isArray(item.metadata.tags)) {
+                item.metadata.tags.forEach(tag => {
+                  if (!seenTags.has(tag)) {
+                    allTags.push(tag);
+                    seenTags.add(tag);
+                  }
+                });
               }
             });
             // Count tag frequency
@@ -588,8 +932,8 @@ const GalleryScreen = () => {
                 if (!tag.toLowerCase().includes(tagSearch.toLowerCase())) return false;
                 // If this tag is added, would any image match all selectedTags + this tag?
                 const tagsToTest = [...selectedTags, tag];
-                return imageFiles.some(file =>
-                  Array.isArray(file.metadata.tags) && tagsToTest.every(t => file.metadata.tags.includes(t))
+                return expandedImages.some(item =>
+                  Array.isArray(item.metadata.tags) && tagsToTest.every(t => item.metadata.tags.includes(t))
                 );
               })
               .sort((a, b) => tagCounts[b] - tagCounts[a]);
@@ -658,7 +1002,7 @@ const GalleryScreen = () => {
         </View>
       </View>
 
-      <FlatList
+      <FlatList<ExpandedImageItem>
         data={filteredImages.slice(0, maxPreviews)}
         renderItem={renderImageItem}
         keyExtractor={(item) => item.uuid}
@@ -688,13 +1032,17 @@ const GalleryScreen = () => {
           <FileViewer
             fileData={fileData}
             metadata={selectedFile.metadata}
-            onClose={() => setViewerVisible(false)}
+            onClose={() => {
+              setViewerVisible(false);
+              setSelectedImageIndex(0); // Reset to first image
+            }}
             onMetadataUpdated={refreshFileList}
             isPreviewData={isPreviewData}
             onNavigateNext={navigateToNextImage}
             onNavigatePrev={navigateToPrevImage}
             hasNext={filteredImages.length > 1}
             hasPrev={filteredImages.length > 1}
+            initialImageIndex={selectedImageIndex}
           />
         )}
       </Modal>

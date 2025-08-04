@@ -163,7 +163,7 @@ export class EncryptionUtils {
   }
 
   // creates a preview image
-  private static async createImagePreview(
+  static async createImagePreview(
     imageData: Uint8Array,
     mimeType: string
   ): Promise<Uint8Array | null> {

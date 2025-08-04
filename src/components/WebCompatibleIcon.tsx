@@ -17,6 +17,7 @@ const WebCompatibleIcon: React.FC<IconProps> = ({ name, size = 24, color = '#000
       'image': '🖼️',
       'photo-library': '🖼️',
       'photo': '🖼️',
+      'collections': '🗂️',
       'video-library': '⬛',
       'music-note': '♪',
       'audiotrack': '♪',

@@ -42,6 +42,7 @@ import WebCompatibleIcon from './WebCompatibleIcon';
 // file type renderers
 import ImageFile from './FileTypes/ImageFile';
 import VideoFile from './FileTypes/VideoFile';
+import ImageSet from './FileTypes/ImageSet';
 import { FileMetadata, FileManagerService } from '../utils/FileManagerService';
 import { useFileManagerService } from '../hooks/useFileManagerService';
 import { usePasswordContext } from '../context/PasswordContext';
@@ -60,6 +61,7 @@ interface FileViewerProps {
   onNavigatePrev?: () => void; // callback for navigating to previous file
   hasNext?: boolean; // whether there is a next file
   hasPrev?: boolean; // whether there is a previous file
+  initialImageIndex?: number; // for ImageSet files - which image to start with
 }
 
 // catches errors in file viewer only
@@ -106,6 +108,7 @@ const FileViewer: React.FC<FileViewerProps> = ({
   onNavigatePrev,
   hasNext = false,
   hasPrev = false,
+  initialImageIndex = 0,
 }) => {
   // Local state for displayed metadata
   const [viewerMetadata, setViewerMetadata] = React.useState<FileMetadata>(metadata);
@@ -480,6 +483,30 @@ const FileViewer: React.FC<FileViewerProps> = ({
       } else {
         rendered = <VideoFile uuid={metadata.uuid} mimeType={mimeType} fileName={metadata.name} totalSize={metadata.size} onClose={onClose} />;
       }
+    } else if (mimeType === 'application/imageset') {
+      console.log('[FileViewer] Using ImageSet for imageset:', metadata.name, 'Size:', formatFileSize(metadata.size));
+      rendered = (
+        <View style={{
+          backgroundColor: theme.surface,
+          borderRadius: 12,
+          margin: 16,
+          padding: 16,
+          borderWidth: 2,
+          borderColor: theme.border,
+          position: 'relative',
+          flex: 1,
+          maxHeight: '75%',
+        }}>
+          <ImageSet 
+            fileData={actualFileData} 
+            mimeType={mimeType} 
+            isPreview={isPreviewData}
+            initialImageIndex={initialImageIndex}
+            metadata={metadata}
+            style={{ backgroundColor: theme.surface, borderRadius: 8, flex: 1 }} 
+          />
+        </View>
+      );
     } else {
       rendered = (
         <View style={styles.unsupportedContainer}>
