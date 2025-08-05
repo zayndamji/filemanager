@@ -55,7 +55,6 @@ const getNumColumns = (screenWidth: number) => {
 
 const numColumns = getNumColumns(width);
 const itemSize = (width - 16 * 2 - (numColumns - 1) * 16) / numColumns; // Account for padding and gaps
-const tallItemHeight = itemSize * 1.2; // Make images slightly tall (1.2x aspect ratio)
 
 const getStyles = (theme: typeof import('../theme').darkTheme, screenData: { width: number, numColumns: number, itemSize: number, tallItemHeight: number }) => StyleSheet.create({
   container: {
@@ -284,7 +283,7 @@ const GalleryScreen = () => {
       width,
       numColumns: cols,
       itemSize: (width - 16 * 2 - (cols - 1) * 16) / cols,
-      tallItemHeight: ((width - 16 * 2 - (cols - 1) * 16) / cols) * 1.2
+      tallItemHeight: ((width - 16 * 2 - (cols - 1) * 16) / cols) * 2
     };
   });
 
@@ -503,7 +502,7 @@ const GalleryScreen = () => {
         width: window.width,
         numColumns: cols,
         itemSize: (window.width - 16 * 2 - (cols - 1) * 16) / cols,
-        tallItemHeight: ((window.width - 16 * 2 - (cols - 1) * 16) / cols) * 1.2
+        tallItemHeight: ((window.width - 16 * 2 - (cols - 1) * 16) / cols) * 2
       });
     });
 
