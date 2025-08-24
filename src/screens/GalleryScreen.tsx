@@ -13,6 +13,9 @@ import {
   Button,
   ScrollView,
   InteractionManager,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFileContext, SortOption } from '../context/FileContext';
@@ -226,9 +229,12 @@ const getStyles = (theme: typeof import('../theme').darkTheme, screenData: { wid
   },
   tagSelectorRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     marginTop: 8,
     marginBottom: 8,
+    height: 40, // Fixed height for horizontal scrolling
+  },
+  tagScrollContainer: {
+    paddingRight: 16, // Add padding to the right for better scrolling
   },
   tagChip: {
     flexDirection: 'row',
@@ -269,7 +275,7 @@ const GalleryScreen = () => {
   const [thumbnails, setThumbnails] = useState<Map<string, string>>(new Map());
   const [visibleItems, setVisibleItems] = useState<Set<string>>(new Set());
   const [loadingThumbnails, setLoadingThumbnails] = useState<Set<string>>(new Set());
-  const [maxPreviews, setMaxPreviews] = useState(18);
+  const [maxPreviews, setMaxPreviews] = useState(40);
   const [tagSearch, setTagSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
@@ -879,164 +885,287 @@ const GalleryScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Gallery</Text>
-        <Text style={styles.subtitle}>{imageFiles.length} encrypted images</Text>
-        
-        {/* Header Controls with Sort Dropdown */}
-        <View style={styles.headerControls}>
-          <View /> {/* Empty spacer for alignment */}
-          <SortDropdown 
-            sortBy={sortBy}
-            onSortChange={setSortBy}
-            theme={theme}
-          />
-        </View>
-        
-        {/* Tag search bar */}
-        <View style={styles.searchBarRow}>
-          <TextInput
-            style={styles.searchBarInput}
-            value={tagSearch}
-            onChangeText={setTagSearch}
-            placeholder="Search tags..."
-            editable={true}
-          />
-        </View>
-        {/* Tag selector chips */}
-        <View style={styles.tagSelectorRow}>
-          {(() => {
-            // Collect all tags from expandedImages (avoiding duplicates)
-            const allTags: string[] = [];
-            const seenTags = new Set<string>();
-            expandedImages.forEach(item => {
-              if (Array.isArray(item.metadata.tags)) {
-                item.metadata.tags.forEach(tag => {
-                  if (!seenTags.has(tag)) {
-                    allTags.push(tag);
-                    seenTags.add(tag);
-                  }
-                });
-              }
-            });
-            // Count tag frequency
-            const tagCounts: { [tag: string]: number } = {};
-            allTags.forEach(tag => {
-              tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-            });
-
-            // Selected tags row (always shown)
-            const selectedTagChips: React.ReactNode[] = selectedTags.map(tag => (
-              <TouchableOpacity
-                key={tag}
-                style={styles.selectedTagChip}
-                onPress={() => {
-                  setSelectedTags(selectedTags.filter(t => t !== tag));
-                }}
+      {Platform.OS !== 'web' ? (
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={{ flex: 1 }}>
+            <View style={styles.header}>
+              <Text style={styles.title}>Gallery</Text>
+              <Text style={styles.subtitle}>{imageFiles.length} encrypted images</Text>
+              
+              {/* Header Controls with Sort Dropdown */}
+              <View style={styles.headerControls}>
+                <View /> {/* Empty spacer for alignment */}
+                <SortDropdown 
+                  sortBy={sortBy}
+                  onSortChange={setSortBy}
+                  theme={theme}
+                />
+              </View>
+              
+              {/* Tag search bar */}
+              <View style={styles.searchBarRow}>
+                <TextInput
+                  style={styles.searchBarInput}
+                  value={tagSearch}
+                  onChangeText={setTagSearch}
+                  placeholder="Search tags..."
+                  editable={true}
+                />
+              </View>
+            {/* Tag selector chips */}
+            <View style={styles.tagSelectorRow}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tagScrollContainer}
               >
-                <Text style={styles.tagChipText}>{tag}</Text>
-                <WebCompatibleIcon name="check" size={14} color="#fff" />
-              </TouchableOpacity>
-            ));
+                {(() => {
+                  // Collect all tags from expandedImages (avoiding duplicates)
+                  const allTags: string[] = [];
+                  const seenTags = new Set<string>();
+                  expandedImages.forEach(item => {
+                    if (Array.isArray(item.metadata.tags)) {
+                      item.metadata.tags.forEach(tag => {
+                        if (!seenTags.has(tag)) {
+                          allTags.push(tag);
+                          seenTags.add(tag);
+                        }
+                      });
+                    }
+                  });
+                  // Count tag frequency
+                  const tagCounts: { [tag: string]: number } = {};
+                  allTags.forEach(tag => {
+                    tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+                  });
 
-            // Filter available tags:
-            // - Not already selected
-            // - Adding this tag to selectedTags would still match at least one image
-            const possibleTags = Object.keys(tagCounts)
-              .filter(tag => {
-                if (selectedTags.includes(tag)) return false;
-                if (!tag.toLowerCase().includes(tagSearch.toLowerCase())) return false;
-                // If this tag is added, would any image match all selectedTags + this tag?
-                const tagsToTest = [...selectedTags, tag];
-                return expandedImages.some(item =>
-                  Array.isArray(item.metadata.tags) && tagsToTest.every(t => item.metadata.tags.includes(t))
-                );
-              })
-              .sort((a, b) => tagCounts[b] - tagCounts[a]);
+                  // Selected tags (always shown first)
+                  const selectedTagChips: React.ReactNode[] = selectedTags.map(tag => (
+                    <TouchableOpacity
+                      key={`selected-${tag}`}
+                      style={styles.selectedTagChip}
+                      onPress={() => {
+                        setSelectedTags(selectedTags.filter(t => t !== tag));
+                      }}
+                    >
+                      <Text style={styles.tagChipText}>{tag}</Text>
+                      <WebCompatibleIcon name="check" size={14} color="#fff" />
+                    </TouchableOpacity>
+                  ));
 
-            // Unselected tags row (fit to one line)
-            const unselectedTagChips: React.ReactNode[] = [];
-            let totalWidth = 0;
-            const chipPadding = 20; // estimated: horizontal padding + margin
-            const charWidth = 8; // estimated average width per character
-            for (const tag of possibleTags) {
-              const tagWidth = tag.length * charWidth + chipPadding;
-              if (totalWidth + tagWidth > width) break;
-              unselectedTagChips.push(
-                <TouchableOpacity
-                  key={tag}
-                  style={styles.tagChip}
-                  onPress={() => {
-                    setSelectedTags([...selectedTags, tag]);
-                  }}
-                >
-                  <Text style={styles.tagChipText}>{tag}</Text>
-                </TouchableOpacity>
-              );
-              totalWidth += tagWidth;
+                  // Filter available tags:
+                  // - Not already selected
+                  // - Match search filter
+                  // - Adding this tag to selectedTags would still match at least one image
+                  const availableTags = Object.keys(tagCounts)
+                    .filter(tag => {
+                      if (selectedTags.includes(tag)) return false;
+                      if (!tag.toLowerCase().includes(tagSearch.toLowerCase())) return false;
+                      // If this tag is added, would any image match all selectedTags + this tag?
+                      const tagsToTest = [...selectedTags, tag];
+                      return expandedImages.some(item =>
+                        Array.isArray(item.metadata.tags) && tagsToTest.every(t => item.metadata.tags.includes(t))
+                      );
+                    })
+                    .sort((a, b) => tagCounts[b] - tagCounts[a]);
+
+                  // Unselected tags
+                  const unselectedTagChips: React.ReactNode[] = availableTags.map(tag => (
+                    <TouchableOpacity
+                      key={`unselected-${tag}`}
+                      style={styles.tagChip}
+                      onPress={() => {
+                        setSelectedTags([...selectedTags, tag]);
+                      }}
+                    >
+                      <Text style={styles.tagChipText}>{tag}</Text>
+                    </TouchableOpacity>
+                  ));
+
+                  // Combine selected and unselected tags
+                  return [...selectedTagChips, ...unselectedTagChips];
+                })()}
+              </ScrollView>
+            </View>
+            <View style={styles.inputRow}>
+              <Text style={styles.inputLabel}>Max previews:</Text>
+              <TextInput
+                style={styles.input}
+                value={maxPreviews.toString()}
+                keyboardType="number-pad"
+                onChangeText={text => {
+                  let val = parseInt(text, 10);
+                  if (isNaN(val)) val = 0;
+                  if (val < 0) val = 0;
+                  if (val > 200) val = 200;
+                  setMaxPreviews(val);
+                }}
+                maxLength={3}
+              />
+            </View>
+          </View>
+
+          <FlatList<ExpandedImageItem>
+            data={filteredImages.slice(0, maxPreviews)}
+            renderItem={renderImageItem}
+            keyExtractor={(item) => item.uuid}
+            numColumns={screenData.numColumns}
+            key={`columns-${screenData.numColumns}`} // Force re-render when columns change
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={8}
+            initialNumToRender={8}
+            windowSize={5}
+            refreshControl={
+              <RefreshControl refreshing={loading} onRefresh={refreshFileList} />
             }
-
-            // Only show selected tags row if there are selected tags
-            if (selectedTagChips.length > 0) {
-              return (
-                <>
-                  {/* Selected tags row (always first row) */}
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 4 }}>
-                    {selectedTagChips}
-                  </View>
-                  {/* Unselected tags row (always second row, max one line) */}
-                  <View style={{ flexDirection: 'row', flexWrap: 'nowrap' }}>
-                    {unselectedTagChips}
-                  </View>
-                </>
-              );
-            } else {
-              // Only unselected tags row if no selected tags
-              return (
-                <View style={{ flexDirection: 'row', flexWrap: 'nowrap' }}>
-                  {unselectedTagChips}
-                </View>
-              );
-            }
-          })()}
-        </View>
-        <View style={styles.inputRow}>
-          <Text style={styles.inputLabel}>Max previews:</Text>
-          <TextInput
-            style={styles.input}
-            value={maxPreviews.toString()}
-            keyboardType="number-pad"
-            onChangeText={text => {
-              let val = parseInt(text, 10);
-              if (isNaN(val)) val = 0;
-              if (val < 0) val = 0;
-              if (val > 40) val = 40;
-              setMaxPreviews(val);
-            }}
-            maxLength={2}
+            ListEmptyComponent={renderEmptyState}
+            contentContainerStyle={filteredImages.length === 0 ? styles.emptyContainer : styles.galleryContainer}
+            columnWrapperStyle={screenData.numColumns > 1 ? styles.row : { justifyContent: 'center', marginBottom: 16 }}
           />
         </View>
-      </View>
+      </TouchableWithoutFeedback>
+      ) : (
+        <View style={{ flex: 1 }}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Gallery</Text>
+            <Text style={styles.subtitle}>{imageFiles.length} encrypted images</Text>
+            
+            {/* Header Controls with Sort Dropdown */}
+            <View style={styles.headerControls}>
+              <View /> {/* Empty spacer for alignment */}
+              <SortDropdown 
+                sortBy={sortBy}
+                onSortChange={setSortBy}
+                theme={theme}
+              />
+            </View>
+            
+            {/* Tag search bar */}
+            <View style={styles.searchBarRow}>
+              <TextInput
+                style={styles.searchBarInput}
+                value={tagSearch}
+                onChangeText={setTagSearch}
+                placeholder="Search tags..."
+                editable={true}
+              />
+            </View>
+            {/* Tag selector chips */}
+            <View style={styles.tagSelectorRow}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tagScrollContainer}
+              >
+                {(() => {
+                  // Collect all tags from expandedImages (avoiding duplicates)
+                  const allTags: string[] = [];
+                  const seenTags = new Set<string>();
+                  expandedImages.forEach(item => {
+                    if (Array.isArray(item.metadata.tags)) {
+                      item.metadata.tags.forEach(tag => {
+                        if (!seenTags.has(tag)) {
+                          allTags.push(tag);
+                          seenTags.add(tag);
+                        }
+                      });
+                    }
+                  });
+                  // Count tag frequency
+                  const tagCounts: { [tag: string]: number } = {};
+                  allTags.forEach(tag => {
+                    tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+                  });
 
-      <FlatList<ExpandedImageItem>
-        data={filteredImages.slice(0, maxPreviews)}
-        renderItem={renderImageItem}
-        keyExtractor={(item) => item.uuid}
-        numColumns={screenData.numColumns}
-        key={`columns-${screenData.numColumns}`} // Force re-render when columns change
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={8}
-        initialNumToRender={8}
-        windowSize={5}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={refreshFileList} />
-        }
-        ListEmptyComponent={renderEmptyState}
-        contentContainerStyle={filteredImages.length === 0 ? styles.emptyContainer : styles.galleryContainer}
-        columnWrapperStyle={screenData.numColumns > 1 ? styles.row : { justifyContent: 'center', marginBottom: 16 }}
-      />
+                  // Selected tags (always shown first)
+                  const selectedTagChips: React.ReactNode[] = selectedTags.map(tag => (
+                    <TouchableOpacity
+                      key={`selected-${tag}`}
+                      style={styles.selectedTagChip}
+                      onPress={() => {
+                        setSelectedTags(selectedTags.filter(t => t !== tag));
+                      }}
+                    >
+                      <Text style={styles.tagChipText}>{tag}</Text>
+                      <WebCompatibleIcon name="check" size={14} color="#fff" />
+                    </TouchableOpacity>
+                  ));
+
+                  // Filter available tags:
+                  // - Not already selected
+                  // - Match search filter
+                  // - Adding this tag to selectedTags would still match at least one image
+                  const availableTags = Object.keys(tagCounts)
+                    .filter(tag => {
+                      if (selectedTags.includes(tag)) return false;
+                      if (!tag.toLowerCase().includes(tagSearch.toLowerCase())) return false;
+                      // If this tag is added, would any image match all selectedTags + this tag?
+                      const tagsToTest = [...selectedTags, tag];
+                      return expandedImages.some(item =>
+                        Array.isArray(item.metadata.tags) && tagsToTest.every(t => item.metadata.tags.includes(t))
+                      );
+                    })
+                    .sort((a, b) => tagCounts[b] - tagCounts[a]);
+
+                  // Unselected tags
+                  const unselectedTagChips: React.ReactNode[] = availableTags.map(tag => (
+                    <TouchableOpacity
+                      key={`unselected-${tag}`}
+                      style={styles.tagChip}
+                      onPress={() => {
+                        setSelectedTags([...selectedTags, tag]);
+                      }}
+                    >
+                      <Text style={styles.tagChipText}>{tag}</Text>
+                    </TouchableOpacity>
+                  ));
+
+                  // Combine selected and unselected tags
+                  return [...selectedTagChips, ...unselectedTagChips];
+                })()}
+              </ScrollView>
+            </View>
+            <View style={styles.inputRow}>
+              <Text style={styles.inputLabel}>Max previews:</Text>
+              <TextInput
+                style={styles.input}
+                value={maxPreviews.toString()}
+                keyboardType="number-pad"
+                onChangeText={text => {
+                  let val = parseInt(text, 10);
+                  if (isNaN(val)) val = 5;
+                  if (val < 5) val = 5;
+                  if (val > 150) val = 150;
+                  setMaxPreviews(val);
+                }}
+                maxLength={2}
+              />
+            </View>
+          </View>
+
+          <FlatList<ExpandedImageItem>
+            data={filteredImages.slice(0, maxPreviews)}
+            renderItem={renderImageItem}
+            keyExtractor={(item) => item.uuid}
+            numColumns={screenData.numColumns}
+            key={`columns-${screenData.numColumns}`} // Force re-render when columns change
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={8}
+            initialNumToRender={8}
+            windowSize={5}
+            refreshControl={
+              <RefreshControl refreshing={loading} onRefresh={refreshFileList} />
+            }
+            ListEmptyComponent={renderEmptyState}
+            contentContainerStyle={filteredImages.length === 0 ? styles.emptyContainer : styles.galleryContainer}
+            columnWrapperStyle={screenData.numColumns > 1 ? styles.row : { justifyContent: 'center', marginBottom: 16 }}
+          />
+        </View>
+      )}
 
       {/* Image Viewer Modal */}
       <Modal
